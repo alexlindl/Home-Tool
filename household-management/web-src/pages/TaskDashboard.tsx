@@ -83,6 +83,11 @@ export const TaskDashboard: React.FC = () => {
     setEditingTask(null);
   };
 
+  const handleDeleted = () => {
+    refreshTasks();
+    setEditingTask(null);
+  };
+
   const handleListRefresh = useCallback(() => {
     refreshTasks();
   }, [refreshTasks]);
@@ -164,6 +169,7 @@ export const TaskDashboard: React.FC = () => {
         open={!!editingTask}
         onClose={() => setEditingTask(null)}
         onCreated={handleCreatedOrUpdated}
+        onDeleted={handleDeleted}
         currentUserId={currentUser?.id || ''}
         editTask={editingTask}
         listId={selectedListId === 'all' ? undefined : selectedListId}

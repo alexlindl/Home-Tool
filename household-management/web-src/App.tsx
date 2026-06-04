@@ -5,7 +5,7 @@
  * Requirements: 1.2, 12.4, 16.1, 17.1, 18.1, 19.1, 20.1
  */
 
-import { HashRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth, AuthProvider } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserSelector } from '@/components/UserSelector';
@@ -43,8 +43,6 @@ function AppContent() {
           />
         </div>
         <div className="app-header-right">
-          <UserBadge userName={currentUser.name} size="sm" />
-          <span className="app-header-username">{currentUser.name}</span>
           <button
             className="btn btn--icon"
             onClick={() => navigate('/settings')}
@@ -56,6 +54,8 @@ function AppContent() {
           <button className="btn btn--text" onClick={logout}>
             Switch
           </button>
+          <UserBadge userName={currentUser.name} size="sm" />
+          <span className="app-header-username">{currentUser.name}</span>
         </div>
       </header>
 
@@ -89,12 +89,11 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <HashRouter>
+      <BrowserRouter>
         <AppContent />
-      </HashRouter>
+      </BrowserRouter>
     </AuthProvider>
   );
 }
 
 export default App;
-
