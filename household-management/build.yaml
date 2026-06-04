@@ -1,4 +1,3 @@
-# Build configuration for multi-architecture support
 build_from:
   amd64: "ghcr.io/home-assistant/amd64-base:3.19"
   aarch64: "ghcr.io/home-assistant/aarch64-base:3.19"
@@ -8,5 +7,5 @@ args:
 labels:
   org.opencontainers.image.title: "Household Management"
   org.opencontainers.image.description: "Manage household tasks and shopping lists"
-  org.opencontainers.image.source: "https://github.com/your-username/home-tool"
+  org.opencontainers.image.source: "https://github.com/alexlindl/Home-Tool"
   org.opencontainers.image.authors: "Alex"
