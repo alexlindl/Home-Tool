@@ -37,10 +37,12 @@ function AppContent() {
       <header className="app-header">
         <div className="app-header-left">
           <h1 className="app-title">Home</h1>
-          <span
-            className={`connection-indicator ${isConnected ? 'connection-indicator--online' : 'connection-indicator--offline'}`}
-            title={isConnected ? 'Connected' : 'Offline'}
-          />
+          {isConnected && (
+            <span
+              className="connection-indicator connection-indicator--online"
+              title="Connected"
+            />
+          )}
         </div>
         <div className="app-header-right">
           <button
