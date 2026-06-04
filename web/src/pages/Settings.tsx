@@ -21,7 +21,7 @@ import {
 } from '@/services/api';
 import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
 
-type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'port';
+type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme';
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'templates', label: 'Templates' },
@@ -30,7 +30,7 @@ const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'lists', label: 'Lists' },
   { id: 'database', label: 'Database' },
   { id: 'backup', label: 'Backup' },
-  { id: 'port', label: 'Port' },
+  { id: 'theme', label: 'Theme' },
 ];
 
 // ===========================================================================
@@ -637,91 +637,69 @@ const TemplateManagement: React.FC = () => {
 };
 
 // ===========================================================================
-// PortConfiguration
+// ThemeSelector
 // ===========================================================================
 
-const PortConfiguration: React.FC = () => {
-  const [currentPort, setCurrentPort] = useState<number | null>(null);
-  const [portInput, setPortInput] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+type ThemeMode = 'light' | 'dark' | 'system';
 
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const config = await adminApi.getConfig();
-        setCurrentPort(config.port);
-        setPortInput(String(config.port));
-      } catch {
-        setStatus({ type: 'error', message: 'Failed to load port configuration' });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
+const THEME_STORAGE_KEY = 'household_theme';
+
+const ThemeSelector: React.FC = () => {
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    return (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'system';
+  });
+
+  const applyTheme = useCallback((mode: ThemeMode) => {
+    const root = document.documentElement;
+    if (mode === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+      root.setAttribute('data-theme', mode);
+    }
   }, []);
 
-  const portNum = Number(portInput);
-  const isValid = Number.isInteger(portNum) && portNum >= 1024 && portNum <= 65535;
-  const isChanged = portNum !== currentPort;
+  useEffect(() => {
+    applyTheme(theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme, applyTheme]);
 
-  const handleSave = async () => {
-    if (!isValid || !isChanged) return;
-    setSaving(true);
-    try {
-      const result = await adminApi.updateConfig({ port: portNum });
-      setCurrentPort(result.port);
-      setStatus({ type: 'success', message: 'Port updated. A server restart is required for the change to take effect.' });
-    } catch {
-      setStatus({ type: 'error', message: 'Failed to update port' });
-    } finally {
-      setSaving(false);
-    }
+  // Listen for system theme changes when in system mode
+  useEffect(() => {
+    if (theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = () => applyTheme('system');
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [theme, applyTheme]);
+
+  const handleChange = (mode: ThemeMode) => {
+    setTheme(mode);
   };
-
-  if (loading) return <p className="loading-state">Loading configuration...</p>;
 
   return (
     <div className="settings-section">
-      <h2>Port Configuration</h2>
-      {status && (
-        <p className={status.type === 'success' ? 'loading-state' : 'error-state'}>
-          {status.message}
-        </p>
-      )}
-
-      <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)' }}>
-        Current port: <strong>{currentPort}</strong>
+      <h2>Theme</h2>
+      <p style={{ marginBottom: 16, color: 'var(--color-text-secondary)' }}>
+        Choose how the app looks. System will follow your device settings.
       </p>
 
-      <div className="settings-add-form">
-        <input
-          type="number"
-          min={1024}
-          max={65535}
-          value={portInput}
-          onChange={(e) => setPortInput(e.target.value)}
-          placeholder="Port (1024–65535)"
-        />
-        <button
-          className="btn btn--primary"
-          onClick={handleSave}
-          disabled={!isValid || !isChanged || saving}
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </button>
+      <div className="settings-theme-options">
+        {([
+          { id: 'light' as ThemeMode, label: '☀️ Light', description: 'Light background with dark text' },
+          { id: 'dark' as ThemeMode, label: '🌙 Dark', description: 'Dark background with light text' },
+          { id: 'system' as ThemeMode, label: '💻 System', description: 'Follow your device preference' },
+        ]).map((option) => (
+          <button
+            key={option.id}
+            className={`settings-theme-btn ${theme === option.id ? 'settings-theme-btn--active' : ''}`}
+            onClick={() => handleChange(option.id)}
+          >
+            <span className="settings-theme-label">{option.label}</span>
+            <span className="settings-theme-desc">{option.description}</span>
+          </button>
+        ))}
       </div>
-
-      {portInput && !isValid && (
-        <p className="error-state" style={{ textAlign: 'left', padding: '8px 0' }}>
-          Port must be an integer between 1024 and 65535.
-        </p>
-      )}
-
-      <p className="settings-warning">
-        ⚠️ Changing the port requires a server restart to take effect.
-      </p>
     </div>
   );
 };
@@ -1100,7 +1078,7 @@ export const Settings: React.FC = () => {
         {activeTab === 'templates' && <TemplateManagement />}
         {activeTab === 'lists' && <ListManagement />}
         {activeTab === 'backup' && <BackupRestore />}
-        {activeTab === 'port' && <PortConfiguration />}
+        {activeTab === 'theme' && <ThemeSelector />}
       </div>
     </div>
   );

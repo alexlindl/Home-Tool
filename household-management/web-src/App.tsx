@@ -5,7 +5,7 @@
  * Requirements: 1.2, 12.4, 16.1, 17.1, 18.1, 19.1, 20.1
  */
 
-import { HashRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth, AuthProvider } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserSelector } from '@/components/UserSelector';
@@ -36,7 +36,9 @@ function AppContent() {
     <div className="app-layout">
       <header className="app-header">
         <div className="app-header-left">
-          <h1 className="app-title">Home</h1>
+          <Link to="/" className="app-title-link">
+            <h1 className="app-title">Home</h1>
+          </Link>
           {isConnected && (
             <span
               className="connection-indicator connection-indicator--online"
