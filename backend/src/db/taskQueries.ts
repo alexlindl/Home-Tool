@@ -66,6 +66,15 @@ export interface TaskFilters {
  * @returns Promise<Task> The created task
  */
 export const createTask = async (input: CreateTaskInput): Promise<Task> => {
+  // Default to the default list if no listId provided
+  let listId = input.listId || null;
+  if (!listId) {
+    const defaultListResult = await query('SELECT id FROM task_lists WHERE is_default = TRUE LIMIT 1');
+    if (defaultListResult.rows.length > 0) {
+      listId = (defaultListResult.rows[0] as { id: string }).id;
+    }
+  }
+
   const result = await query(
     `INSERT INTO tasks (
       title, description, assigned_to, created_by, due_date,
@@ -82,7 +91,7 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
       input.recurrenceFrequency || null,
       input.recurrenceInterval || null,
       input.recurrenceEndDate || null,
-      input.listId || null,
+      listId,
     ]
   );
 

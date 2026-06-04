@@ -5,7 +5,7 @@
  * Requirements: 1.2, 12.4, 16.1, 17.1, 18.1, 19.1, 20.1
  */
 
-import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth, AuthProvider } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserSelector } from '@/components/UserSelector';
@@ -89,11 +89,12 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <HashRouter>
         <AppContent />
-      </BrowserRouter>
+      </HashRouter>
     </AuthProvider>
   );
 }
 
 export default App;
+

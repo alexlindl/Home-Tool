@@ -38,11 +38,20 @@ export interface UpdateItemInput {
  * @returns Promise<ShoppingItem> The created shopping item
  */
 export const addItem = async (input: AddItemInput): Promise<ShoppingItem> => {
+  // Default to the default list if no listId provided
+  let listId = input.listId || null;
+  if (!listId) {
+    const defaultListResult = await query('SELECT id FROM shopping_lists WHERE is_default = TRUE LIMIT 1');
+    if (defaultListResult.rows.length > 0) {
+      listId = (defaultListResult.rows[0] as { id: string }).id;
+    }
+  }
+
   const result = await query(
     `INSERT INTO shopping_items (name, category, added_by, list_id)
      VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [input.name, input.category, input.addedBy, input.listId || null]
+    [input.name, input.category, input.addedBy, listId]
   );
 
   return shoppingItemFromRow(result.rows[0] as ShoppingItemRow);
