@@ -24,11 +24,11 @@ import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@
 type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'port';
 
 const tabs: { id: SettingsTab; label: string }[] = [
-  { id: 'users', label: 'Users' },
-  { id: 'database', label: 'Database' },
-  { id: 'categories', label: 'Categories' },
   { id: 'templates', label: 'Templates' },
+  { id: 'categories', label: 'Categories' },
+  { id: 'users', label: 'Users' },
   { id: 'lists', label: 'Lists' },
+  { id: 'database', label: 'Database' },
   { id: 'backup', label: 'Backup' },
   { id: 'port', label: 'Port' },
 ];
@@ -286,6 +286,40 @@ const DatabaseManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Factory Reset */}
+      <div className="settings-danger-zone" style={{ marginTop: 24 }}>
+        <h3 style={{ color: 'var(--color-overdue)', marginBottom: 8 }}>⚠️ Factory Reset</h3>
+        <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+          Completely wipe all data and return to a fresh install state. This deletes ALL tasks, shopping items, history, templates, categories, lists, and users. This cannot be undone.
+        </p>
+        <button
+          className="btn btn--primary settings-btn-danger"
+          onClick={async () => {
+            const first = window.confirm('Are you sure you want to factory reset? ALL data will be permanently deleted.');
+            if (!first) return;
+            const second = window.prompt('Type "FACTORY RESET" to confirm:');
+            if (second !== 'FACTORY RESET') return;
+            try {
+              const response = await fetch('./api/admin/factory-reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirm: true }),
+              });
+              if (response.ok) {
+                window.alert('Factory reset complete. The app will now reload.');
+                window.location.reload();
+              } else {
+                setStatus({ type: 'error', message: 'Factory reset failed.' });
+              }
+            } catch {
+              setStatus({ type: 'error', message: 'Factory reset failed.' });
+            }
+          }}
+        >
+          Factory Reset
+        </button>
+      </div>
     </div>
   );
 };
@@ -1030,7 +1064,7 @@ const BackupRestore: React.FC = () => {
 
 export const Settings: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<SettingsTab>('users');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('templates');
 
   return (
     <div className="settings-page">

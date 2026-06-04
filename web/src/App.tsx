@@ -43,8 +43,6 @@ function AppContent() {
           />
         </div>
         <div className="app-header-right">
-          <UserBadge userName={currentUser.name} size="sm" />
-          <span className="app-header-username">{currentUser.name}</span>
           <button
             className="btn btn--icon"
             onClick={() => navigate('/settings')}
@@ -56,6 +54,8 @@ function AppContent() {
           <button className="btn btn--text" onClick={logout}>
             Switch
           </button>
+          <UserBadge userName={currentUser.name} size="sm" />
+          <span className="app-header-username">{currentUser.name}</span>
         </div>
       </header>
 

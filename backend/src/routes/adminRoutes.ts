@@ -335,4 +335,48 @@ router.post('/restore', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+/**
+ * POST /api/admin/factory-reset
+ * Complete factory reset — deletes ALL data including users.
+ * Returns the app to a fresh install state.
+ *
+ * Request body: { "confirm": true }
+ */
+router.post('/factory-reset', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { confirm } = req.body;
+
+    if (confirm !== true) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Confirmation required. Set confirm: true to proceed.',
+      });
+      return;
+    }
+
+    // Delete everything in correct FK order
+    await query('DELETE FROM task_history');
+    await query('DELETE FROM shopping_items');
+    await query('DELETE FROM tasks');
+    await query('DELETE FROM item_templates');
+    await query('DELETE FROM task_templates');
+    await query('DELETE FROM shopping_lists');
+    await query('DELETE FROM task_lists');
+    await query('DELETE FROM categories');
+    await query('DELETE FROM users');
+
+    // Re-seed default lists and categories
+    await query("INSERT INTO task_lists (name, is_default) SELECT 'Tasks', TRUE WHERE NOT EXISTS (SELECT 1 FROM task_lists WHERE is_default = TRUE)");
+    await query("INSERT INTO shopping_lists (name, is_default) SELECT 'Shopping', TRUE WHERE NOT EXISTS (SELECT 1 FROM shopping_lists WHERE is_default = TRUE)");
+
+    res.status(200).json({ message: 'Factory reset completed. All data has been deleted.' });
+  } catch (error) {
+    console.error('Error during factory reset:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to perform factory reset',
+    });
+  }
+});
+
 export default router;
