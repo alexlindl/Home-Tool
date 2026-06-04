@@ -61,7 +61,7 @@ fi
 
 # Start PostgreSQL
 echo "[postgres] Starting PostgreSQL..."
-su - postgres -c "pg_ctl start -D $PGDATA -l /data/postgres/logfile -w"
+su - postgres -c "pg_ctl start -D $PGDATA -l /config/postgres/logfile -w"
 
 # Wait for PostgreSQL to be ready
 echo "[postgres] Waiting for PostgreSQL to be ready..."

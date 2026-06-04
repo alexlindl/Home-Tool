@@ -18,7 +18,7 @@ The Household Management add-on provides a complete household task and shopping 
 
 The add-on runs three services inside a single container:
 
-1. **PostgreSQL 16** — stores all task, shopping, and user data in `/data/postgres`
+1. **PostgreSQL 16** — stores all task, shopping, and user data in `/config/postgres`
 2. **Node.js Backend** — REST API on port 3000 (internal)
 3. **Nginx** — serves the web UI and proxies API requests on port 8023
 
@@ -187,7 +187,7 @@ rest_command:
 1. Check the add-on logs: **Settings → Add-ons → Household Management → Log**
 2. Common issues:
    - Port 8023 conflict: Change the port in the add-on configuration
-   - Database corruption: Stop the add-on, delete the `/data/postgres` directory, restart
+   - Database corruption: Stop the add-on, delete the `/config/postgres` directory, restart
 
 ### Can't access from sidebar
 
@@ -212,7 +212,7 @@ To completely reset the database:
 
 ## Backup & Restore
 
-The add-on data is included in Home Assistant's full backups. The PostgreSQL data lives in `/data/postgres` which is persisted across restarts and updates.
+The add-on data is included in Home Assistant's full backups. The PostgreSQL data lives in `/config/postgres` which is persisted across restarts and updates.
 
 To manually back up:
 1. Stop the add-on

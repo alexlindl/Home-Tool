@@ -36,10 +36,10 @@ RUN apk add --no-cache \
     bash \
     curl
 
-RUN mkdir -p /data/postgres /run/postgresql /run/nginx \
+RUN mkdir -p /config/postgres /run/postgresql /run/nginx \
     /app/backend /app/web /var/log/nginx /var/lib/nginx/tmp
 
-RUN chown -R postgres:postgres /data/postgres /run/postgresql
+RUN chown -R postgres:postgres /config/postgres /run/postgresql
 
 COPY --from=backend-builder /build/backend/dist /app/backend/dist
 COPY --from=backend-builder /build/backend/package.json /app/backend/
