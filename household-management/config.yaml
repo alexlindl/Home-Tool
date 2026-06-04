@@ -1,0 +1,32 @@
+name: "Household Management"
+description: "Manage household tasks and shopping lists directly from Home Assistant"
+version: "1.0.0"
+slug: "household-management"
+url: "https://github.com/alexlindl/Home-Tool"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8023
+ingress_entry: "/"
+panel_icon: "mdi:home-assistant"
+panel_title: "Household"
+webui: "http://[HOST]:[PORT:8023]"
+ports:
+  8023/tcp: null
+ports_description:
+  8023/tcp: "Web interface"
+map:
+  - addon_config:rw
+options:
+  db_password: "household123"
+  db_name: "household_app"
+  db_user: "household"
+schema:
+  db_password: str
+  db_name: str
+  db_user: str
+image: "ghcr.io/{build_from}/household-management-{arch}"
