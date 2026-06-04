@@ -365,9 +365,87 @@ router.post('/factory-reset', async (req: Request, res: Response): Promise<void>
     await query('DELETE FROM categories');
     await query('DELETE FROM users');
 
-    // Re-seed default lists and categories
+    // Re-seed default lists
     await query("INSERT INTO task_lists (name, is_default) SELECT 'Tasks', TRUE WHERE NOT EXISTS (SELECT 1 FROM task_lists WHERE is_default = TRUE)");
     await query("INSERT INTO shopping_lists (name, is_default) SELECT 'Shopping', TRUE WHERE NOT EXISTS (SELECT 1 FROM shopping_lists WHERE is_default = TRUE)");
+
+    // Re-seed default categories
+    const defaultCategories = ['produce', 'dairy', 'bakery', 'meat', 'frozen', 'pantry', 'household', 'drinks', 'snacks', 'toiletries'];
+    for (const cat of defaultCategories) {
+      await query(
+        "INSERT INTO categories (name, is_default) SELECT $1::varchar, TRUE WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = $1::varchar)",
+        [cat],
+      );
+    }
+
+    // Re-seed default task templates
+    const defaultTaskTemplates = [
+      { title: 'Vacuum Living Room', description: 'Vacuum carpets and rugs in the living room' },
+      { title: 'Vacuum Bedrooms', description: 'Vacuum all bedroom floors' },
+      { title: 'Mop Kitchen Floor', description: 'Mop and clean the kitchen floor' },
+      { title: 'Clean Bathrooms', description: 'Clean toilet, sink, bath/shower and mirrors' },
+      { title: 'Do the Dishes', description: 'Wash up or load/unload dishwasher' },
+      { title: 'Laundry', description: 'Wash, dry and fold laundry' },
+      { title: 'Iron Clothes', description: 'Iron and put away clean clothes' },
+      { title: 'Take Out Bins', description: 'Take recycling and general waste out' },
+      { title: 'Mow the Lawn', description: 'Mow front and back garden' },
+      { title: 'Tidy Up', description: 'General tidy of shared spaces' },
+      { title: 'Change Bed Sheets', description: 'Strip and remake beds with fresh linen' },
+      { title: 'Clean Windows', description: 'Clean interior windows and sills' },
+      { title: 'Dust Surfaces', description: 'Dust shelves, furniture and ornaments' },
+      { title: 'Clean Oven', description: 'Deep clean the oven' },
+      { title: 'Food Shop', description: 'Do the weekly food shop' },
+    ];
+    for (const t of defaultTaskTemplates) {
+      await query(
+        "INSERT INTO task_templates (title, description, is_prepopulated) SELECT $1::varchar, $2::text, TRUE WHERE NOT EXISTS (SELECT 1 FROM task_templates WHERE title = $1::varchar)",
+        [t.title, t.description],
+      );
+    }
+
+    // Re-seed default item templates
+    const defaultItemTemplates = [
+      { name: 'Bananas', category: 'produce' }, { name: 'Apples', category: 'produce' },
+      { name: 'Potatoes', category: 'produce' }, { name: 'Onions', category: 'produce' },
+      { name: 'Carrots', category: 'produce' }, { name: 'Tomatoes', category: 'produce' },
+      { name: 'Cucumber', category: 'produce' }, { name: 'Lettuce', category: 'produce' },
+      { name: 'Mushrooms', category: 'produce' }, { name: 'Peppers', category: 'produce' },
+      { name: 'Broccoli', category: 'produce' }, { name: 'Garlic', category: 'produce' },
+      { name: 'Milk', category: 'dairy' }, { name: 'Butter', category: 'dairy' },
+      { name: 'Cheese', category: 'dairy' }, { name: 'Eggs', category: 'dairy' },
+      { name: 'Yoghurt', category: 'dairy' }, { name: 'Cream', category: 'dairy' },
+      { name: 'Bread', category: 'bakery' }, { name: 'Rolls', category: 'bakery' },
+      { name: 'Wraps', category: 'bakery' }, { name: 'Crumpets', category: 'bakery' },
+      { name: 'Chicken Breasts', category: 'meat' }, { name: 'Mince Beef', category: 'meat' },
+      { name: 'Bacon', category: 'meat' }, { name: 'Sausages', category: 'meat' },
+      { name: 'Salmon Fillets', category: 'meat' },
+      { name: 'Fish Fingers', category: 'frozen' }, { name: 'Frozen Peas', category: 'frozen' },
+      { name: 'Chips', category: 'frozen' }, { name: 'Pizza', category: 'frozen' },
+      { name: 'Ice Cream', category: 'frozen' },
+      { name: 'Pasta', category: 'pantry' }, { name: 'Rice', category: 'pantry' },
+      { name: 'Tinned Tomatoes', category: 'pantry' }, { name: 'Baked Beans', category: 'pantry' },
+      { name: 'Cereal', category: 'pantry' }, { name: 'Cooking Oil', category: 'pantry' },
+      { name: 'Flour', category: 'pantry' }, { name: 'Sugar', category: 'pantry' },
+      { name: 'Tea Bags', category: 'pantry' }, { name: 'Coffee', category: 'pantry' },
+      { name: 'Salt', category: 'pantry' }, { name: 'Pepper', category: 'pantry' },
+      { name: 'Orange Juice', category: 'drinks' }, { name: 'Squash', category: 'drinks' },
+      { name: 'Fizzy Water', category: 'drinks' },
+      { name: 'Crisps', category: 'snacks' }, { name: 'Biscuits', category: 'snacks' },
+      { name: 'Chocolate', category: 'snacks' },
+      { name: 'Kitchen Roll', category: 'household' }, { name: 'Toilet Roll', category: 'household' },
+      { name: 'Bin Bags', category: 'household' }, { name: 'Washing Up Liquid', category: 'household' },
+      { name: 'Laundry Detergent', category: 'household' }, { name: 'Dishwasher Tablets', category: 'household' },
+      { name: 'Surface Cleaner', category: 'household' }, { name: 'Sponges', category: 'household' },
+      { name: 'Cling Film', category: 'household' }, { name: 'Foil', category: 'household' },
+      { name: 'Shampoo', category: 'toiletries' }, { name: 'Shower Gel', category: 'toiletries' },
+      { name: 'Toothpaste', category: 'toiletries' }, { name: 'Deodorant', category: 'toiletries' },
+    ];
+    for (const item of defaultItemTemplates) {
+      await query(
+        "INSERT INTO item_templates (name, category, is_prepopulated) SELECT $1::varchar, $2::varchar, TRUE WHERE NOT EXISTS (SELECT 1 FROM item_templates WHERE name = $1::varchar)",
+        [item.name, item.category],
+      );
+    }
 
     res.status(200).json({ message: 'Factory reset completed. All data has been deleted.' });
   } catch (error) {

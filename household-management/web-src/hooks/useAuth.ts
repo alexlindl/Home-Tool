@@ -30,18 +30,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Load user from localStorage on mount and verify it still exists
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const user: User = JSON.parse(stored);
-        setCurrentUser(user);
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
+    const verify = async () => {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          const user: User = JSON.parse(stored);
+          // Verify user still exists in the database
+          const users = await userApi.getAllUsers();
+          const found = users.find((u) => u.id === user.id);
+          if (found) {
+            setCurrentUser(found);
+          } else {
+            // User was deleted or DB was reset
+            localStorage.removeItem(STORAGE_KEY);
+          }
+        } catch {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+    verify();
   }, []);
 
   const selectUser = useCallback(async (name: string) => {
