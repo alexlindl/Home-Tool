@@ -1,0 +1,46 @@
+# Dependencies
+backend/node_modules
+web/node_modules
+mobile/node_modules
+
+# Build outputs (we rebuild in Docker)
+backend/dist
+web/dist
+
+# Environment files (use docker-compose environment instead)
+backend/.env
+web/.env
+mobile/.env
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+backend/jest.config.js
+coverage/
+
+# Documentation
+*.md
+!backend/src/db/README.md
+
+# Kiro specs
+.kiro/
+
+# Scripts (not needed in image)
+setup-dev-environment.sh
+verify-setup.sh

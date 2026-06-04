@@ -1,0 +1,58 @@
+{
+  "name": "household-management-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Household Management App",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "db:init": "ts-node src/db/seed.ts",
+    "db:migrate": "ts-node src/db/migrate.ts",
+    "db:seed": "ts-node src/db/seed.ts",
+    "db:reset": "ts-node src/db/migrate.ts && ts-node src/db/seed.ts",
+    "db:test": "ts-node src/db/test-connection.ts"
+  },
+  "keywords": [
+    "household",
+    "task-management",
+    "shopping-list"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "pg": "^8.20.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.3.3",
+    "@types/pg": "^8.18.0",
+    "@types/supertest": "^7.2.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^9.39.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "fast-check": "^4.7.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.1.14",
+    "prettier": "^3.8.1",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

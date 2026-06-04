@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+web/node_modules/
+mobile/node_modules/
+
+# Build outputs
+backend/dist/
+web/dist/
+
+# Environment files with real credentials
+.env
+backend/.env
+web/.env
+mobile/.env
+
+# PostgreSQL data
+postgres_data/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Docker volumes (if local)
+data/
+
+# Kiro internal
+.kiro/
