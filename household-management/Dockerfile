@@ -50,7 +50,10 @@ COPY --from=web-builder /build/web/dist /app/web
 
 COPY nginx.conf /etc/nginx/http.d/default.conf
 COPY run.sh /app/run.sh
-RUN chmod +x /app/run.sh
+COPY scripts/init-db.sh /app/scripts/init-db.sh
+COPY backend-src/db/schema.sql /app/backend/schema.sql
+COPY backend-src/db/migrations/ /app/backend/migrations/
+RUN chmod +x /app/run.sh /app/scripts/init-db.sh
 
 WORKDIR /app
 EXPOSE 8023

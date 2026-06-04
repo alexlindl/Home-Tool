@@ -102,7 +102,11 @@ done
 echo "[postgres] Running seed script..."
 export POSTGRES_USER="$DB_USER"
 export POSTGRES_DB="$DB_NAME"
-su - postgres -c "POSTGRES_USER=$DB_USER POSTGRES_DB=$DB_NAME bash /app/scripts/init-db.sh" 2>/dev/null || true
+if [ -f /app/scripts/init-db.sh ]; then
+    su - postgres -c "POSTGRES_USER=$DB_USER POSTGRES_DB=$DB_NAME bash /app/scripts/init-db.sh" 2>/dev/null || echo "[postgres] Seed script skipped or completed with warnings"
+else
+    echo "[postgres] No seed script found, skipping..."
+fi
 
 # Grant table permissions to app user
 su - postgres -c "psql -h 127.0.0.1 -d $DB_NAME -c \"GRANT ALL ON ALL TABLES IN SCHEMA public TO $DB_USER; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO $DB_USER;\""
