@@ -20,6 +20,7 @@ COPY web-package.json ./package.json
 RUN npm install
 COPY web-tsconfig.json ./tsconfig.json
 COPY web-src ./src
+COPY web-src/vite-env.d.ts ./vite-env.d.ts
 COPY web-index.html ./index.html
 COPY web-vite.config.ts ./vite.config.ts
 RUN npm run build
