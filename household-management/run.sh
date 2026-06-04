@@ -31,10 +31,13 @@ PGDATA="/data/postgres"
 
 echo "[postgres] Initializing PostgreSQL..."
 
+# Create data directory if it doesn't exist (HA add-ons start with empty /data)
+mkdir -p "$PGDATA" /run/postgresql
+chown -R postgres:postgres "$PGDATA" /run/postgresql
+
 # Initialize database if not already done
 if [ ! -f "$PGDATA/PG_VERSION" ]; then
     echo "[postgres] First run - initializing database cluster..."
-    chown -R postgres:postgres /data/postgres
     su - postgres -c "initdb -D $PGDATA --auth=trust --encoding=UTF8"
     
     # Configure PostgreSQL for local connections
