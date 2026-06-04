@@ -27,11 +27,11 @@ export DB_USER
 # PostgreSQL Setup
 # ============================================================================
 
-PGDATA="/data/postgres"
+PGDATA="/config/postgres"
 
 echo "[postgres] Initializing PostgreSQL..."
 
-# Create data directory if it doesn't exist (HA add-ons start with empty /data)
+# Create directories for PostgreSQL
 mkdir -p "$PGDATA" /run/postgresql
 chown -R postgres:postgres "$PGDATA" /run/postgresql
 
