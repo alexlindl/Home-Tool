@@ -13,6 +13,7 @@ interface TaskFormProps {
   open: boolean;
   onClose: () => void;
   onCreated: (task: Task) => void;
+  onDeleted?: () => void;
   currentUserId: string;
   /** When provided, the form operates in edit mode with pre-populated fields */
   editTask?: Task | null;
@@ -24,6 +25,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   open,
   onClose,
   onCreated,
+  onDeleted,
   currentUserId,
   editTask,
   listId,
@@ -118,6 +120,18 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       // Error handling could show a toast
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editTask) return;
+    if (!window.confirm('Are you sure you want to delete this task? This cannot be undone.')) return;
+    try {
+      await taskApi.deleteTask(editTask.id);
+      onClose();
+      if (onDeleted) onDeleted();
+    } catch {
+      // silently fail
     }
   };
 
@@ -241,6 +255,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           )}
 
           <div className="form-actions">
+            {isEditMode && (
+              <button type="button" className="btn btn--secondary settings-btn-danger" onClick={handleDelete}>
+                🗑️ Delete
+              </button>
+            )}
             <button type="button" className="btn btn--secondary" onClick={onClose}>
               Cancel
             </button>

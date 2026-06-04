@@ -421,6 +421,25 @@ body {
   background: var(--color-border);
 }
 
+.task-card-delete {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--color-bg);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background 0.2s;
+}
+
+.task-card-delete:hover {
+  background: #fecaca;
+}
+
 /* --- Shopping List --- */
 .category-groups {
   display: flex;

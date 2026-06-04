@@ -17,9 +17,14 @@ CREATE TABLE IF NOT EXISTS shopping_lists (
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS list_id UUID REFERENCES task_lists(id);
 ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS list_id UUID REFERENCES shopping_lists(id);
 
--- Seed default lists
-INSERT INTO task_lists (name, is_default) VALUES ('Tasks', TRUE) ON CONFLICT DO NOTHING;
-INSERT INTO shopping_lists (name, is_default) VALUES ('Shopping', TRUE) ON CONFLICT DO NOTHING;
+-- Seed default lists (only if none exist)
+INSERT INTO task_lists (name, is_default)
+SELECT 'Tasks', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM task_lists WHERE is_default = TRUE);
+
+INSERT INTO shopping_lists (name, is_default)
+SELECT 'Shopping', TRUE
+WHERE NOT EXISTS (SELECT 1 FROM shopping_lists WHERE is_default = TRUE);
 
 -- Backfill existing rows with default list
 UPDATE tasks SET list_id = (SELECT id FROM task_lists WHERE is_default = TRUE) WHERE list_id IS NULL;

@@ -252,6 +252,18 @@ export const adminApi = {
     );
     return response.data;
   },
+
+  /** Export full database backup as JSON blob */
+  async exportBackup(): Promise<Blob> {
+    const response = await apiClient.get('/admin/backup', { responseType: 'blob' });
+    return response.data;
+  },
+
+  /** Import a backup JSON file */
+  async importBackup(data: unknown): Promise<{ message: string }> {
+    const response = await apiClient.post<{ message: string }>('/admin/restore', { data, confirm: true });
+    return response.data;
+  },
 };
 
 // ---------------------------------------------------------------------------

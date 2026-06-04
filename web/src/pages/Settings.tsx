@@ -21,7 +21,7 @@ import {
 } from '@/services/api';
 import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
 
-type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'port';
+type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'port';
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'users', label: 'Users' },
@@ -29,6 +29,7 @@ const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'categories', label: 'Categories' },
   { id: 'templates', label: 'Templates' },
   { id: 'lists', label: 'Lists' },
+  { id: 'backup', label: 'Backup' },
   { id: 'port', label: 'Port' },
 ];
 
@@ -909,6 +910,121 @@ const ListManagement: React.FC = () => {
 };
 
 // ===========================================================================
+// BackupRestore
+// ===========================================================================
+
+const BackupRestore: React.FC = () => {
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    setStatus(null);
+    try {
+      const blob = await adminApi.exportBackup();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `household-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus({ type: 'success', message: 'Backup exported successfully.' });
+    } catch {
+      setStatus({ type: 'error', message: 'Failed to export backup.' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Read file first
+    let data: unknown;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      data = json.data || json;
+    } catch {
+      setStatus({ type: 'error', message: 'Failed to read file. Make sure it is a valid backup JSON.' });
+      e.target.value = '';
+      return;
+    }
+
+    // Confirm before restoring
+    const confirmed = window.confirm(
+      'WARNING: Restoring a backup will REPLACE all existing data (tasks, shopping items, users, history) with the contents of this file.\n\nThis action cannot be undone.\n\nAre you sure you want to proceed?'
+    );
+
+    if (!confirmed) {
+      e.target.value = '';
+      return;
+    }
+
+    setImporting(true);
+    setStatus(null);
+    try {
+      await adminApi.importBackup(data);
+      setStatus({ type: 'success', message: 'Backup restored successfully.' });
+    } catch {
+      setStatus({ type: 'error', message: 'Failed to restore backup.' });
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="settings-section">
+      <h2>Backup & Restore</h2>
+      {status && (
+        <p className={status.type === 'success' ? 'loading-state' : 'error-state'}>
+          {status.message}
+        </p>
+      )}
+
+      <p style={{ marginBottom: 16, color: 'var(--color-text-secondary)' }}>
+        Export all data as a JSON file, or restore from a previously exported backup.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div>
+          <button
+            className="btn btn--primary"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting...' : '📦 Export Backup'}
+          </button>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', marginBottom: 6, fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+            Import from file:
+          </label>
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            disabled={importing}
+            style={{ fontSize: '0.875rem' }}
+          />
+          {importing && <p style={{ marginTop: 8, fontSize: '0.875rem' }}>Restoring...</p>}
+        </div>
+      </div>
+
+      <p className="settings-warning">
+        ⚠️ Restoring a backup will replace all existing data. This action cannot be undone.
+      </p>
+    </div>
+  );
+};
+
+// ===========================================================================
 // Settings Page (Main)
 // ===========================================================================
 
@@ -949,6 +1065,7 @@ export const Settings: React.FC = () => {
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'templates' && <TemplateManagement />}
         {activeTab === 'lists' && <ListManagement />}
+        {activeTab === 'backup' && <BackupRestore />}
         {activeTab === 'port' && <PortConfiguration />}
       </div>
     </div>
