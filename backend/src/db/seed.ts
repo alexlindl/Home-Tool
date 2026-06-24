@@ -41,7 +41,9 @@ const seedTaskTemplates = async () => {
   for (const template of templates) {
     try {
       await query(
-        'INSERT INTO task_templates (title, description, is_prepopulated) VALUES ($1, $2, $3)',
+        `INSERT INTO task_templates (title, description, is_prepopulated)
+         SELECT $1, $2, $3
+         WHERE NOT EXISTS (SELECT 1 FROM task_templates WHERE title = $1)`,
         [template.title, template.description, true]
       );
       console.log(`  ✓ Task template "${template.title}" created`);
@@ -68,7 +70,9 @@ const seedItemTemplates = async () => {
   for (const template of templates) {
     try {
       await query(
-        'INSERT INTO item_templates (name, category, is_prepopulated) VALUES ($1, $2, $3)',
+        `INSERT INTO item_templates (name, category, is_prepopulated)
+         SELECT $1, $2, $3
+         WHERE NOT EXISTS (SELECT 1 FROM item_templates WHERE name = $1 AND is_prepopulated = true)`,
         [template.name, template.category, true]
       );
       console.log(`  ✓ Item template "${template.name}" created`);

@@ -185,10 +185,11 @@ export const shoppingApi = {
   },
 
   /** Add a shopping item from a template */
-  async addItemFromTemplate(templateId: string, addedBy: string): Promise<ShoppingItem> {
+  async addItemFromTemplate(templateId: string, addedBy: string, listId?: string): Promise<ShoppingItem> {
     const response = await apiClient.post<{ item: ShoppingItem }>('/shopping', {
       templateId,
       addedBy,
+      listId,
     });
     return response.data.item;
   },

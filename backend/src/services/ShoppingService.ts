@@ -315,8 +315,8 @@ export class ShoppingService {
    * @returns Promise<ItemTemplate> The created (or existing) template
    */
   private async saveAsTemplate(item: ShoppingItem, createdBy: string): Promise<ItemTemplate> {
-    // Check if a custom template with this name already exists to avoid duplicates
-    const existingTemplates = await dbGetItemTemplates({ isPrePopulated: false });
+    // Check if ANY template (custom or pre-populated) with this name already exists to avoid duplicates
+    const existingTemplates = await dbGetItemTemplates();
     const duplicate = existingTemplates.find(
       (t) => t.name.toLowerCase() === item.name.toLowerCase()
     );

@@ -2,6 +2,15 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.3.2-alpha] - 2026-06-24
+
+### Fixed
+
+- Fixed TypeScript build errors in ShoppingList page caused by dynamic categories
+- Shopping list now properly displays custom categories (with fallback emoji label)
+- Items in custom categories no longer disappear from the list view
+- Fixed `AddItemForm` type error when setting initial category from API response
+
 ## [0.3.1-alpha] - 2026-06-24
 
 ### Fixed
@@ -10,6 +19,11 @@ All notable changes to the Household Management add-on will be documented in thi
 - Replaced hardcoded category validation with dynamic database-backed lookups (backend)
 - Category dropdown in Add Item and Edit Item forms now fetches categories dynamically from the API (frontend)
 - Template updates now accept any valid category from the categories table
+- Fixed duplicate task/item templates being created on every add-on restart (init-db.sh now idempotent)
+- Fixed duplicate templates when running seed.ts multiple times (now uses WHERE NOT EXISTS)
+- Fixed duplicate "custom" template created when adding items that match existing pre-populated template names (e.g. "Milk")
+- Fixed backend crash on transient database connection errors (no longer calls process.exit)
+- Fixed Quick Add templates going to default list instead of the currently viewed shopping list
 
 ### Changed
 

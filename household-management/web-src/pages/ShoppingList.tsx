@@ -26,7 +26,7 @@ const categoryOrder: Category[] = [
   'household',
 ];
 
-const categoryLabels: Record<Category, string> = {
+const categoryLabels: Record<string, string> = {
   produce: '🥬 Produce',
   dairy: '🥛 Dairy',
   bakery: '🍞 Bakery',
@@ -63,22 +63,29 @@ export const ShoppingList: React.FC = () => {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<Category>>(new Set());
 
   const groupedItems = useMemo(() => {
-    const groups: Record<Category, ShoppingItem[]> = {
-      produce: [],
-      dairy: [],
-      bakery: [],
-      meat: [],
-      frozen: [],
-      pantry: [],
-      household: [],
-    };
+    const groups: Record<string, ShoppingItem[]> = {};
+    // Initialize known categories
+    for (const cat of categoryOrder) {
+      groups[cat] = [];
+    }
     for (const item of items) {
       if (!item.isPurchased) {
+        if (!groups[item.category]) {
+          groups[item.category] = [];
+        }
         groups[item.category].push(item);
       }
     }
     return groups;
   }, [items]);
+
+  // Build display order: known categories first, then any custom ones
+  const displayOrder = useMemo(() => {
+    const customCategories = Object.keys(groupedItems).filter(
+      (cat) => !categoryOrder.includes(cat) && groupedItems[cat]!.length > 0
+    );
+    return [...categoryOrder, ...customCategories];
+  }, [groupedItems]);
 
   const toggleCategory = (category: Category) => {
     setCollapsedCategories((prev) => {
@@ -140,11 +147,12 @@ export const ShoppingList: React.FC = () => {
       )}
 
       <div className="category-groups">
-        {categoryOrder.map((category) => {
-          const categoryItems = groupedItems[category];
+        {displayOrder.map((category) => {
+          const categoryItems = groupedItems[category] || [];
           if (categoryItems.length === 0) return null;
 
           const isCollapsed = collapsedCategories.has(category);
+          const label = categoryLabels[category] || `📦 ${category.charAt(0).toUpperCase() + category.slice(1)}`;
 
           return (
             <div key={category} className="category-group">
@@ -154,7 +162,7 @@ export const ShoppingList: React.FC = () => {
                 aria-expanded={!isCollapsed}
               >
                 <span className="category-header-label">
-                  {categoryLabels[category]}
+                  {label}
                 </span>
                 <span className="category-header-count">{categoryItems.length}</span>
                 <span className="category-header-chevron">

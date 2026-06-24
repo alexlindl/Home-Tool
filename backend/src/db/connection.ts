@@ -19,10 +19,10 @@ const poolConfig: PoolConfig = {
 // Create connection pool
 const pool = new Pool(poolConfig);
 
-// Handle pool errors
+// Handle pool errors - log but don't crash on transient connection issues
 pool.on('error', (err: Error) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('Unexpected error on idle client:', err.message);
+  // Don't exit — the pool will automatically reconnect on next query
 });
 
 // Test database connection

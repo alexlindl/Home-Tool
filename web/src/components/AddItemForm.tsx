@@ -38,7 +38,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
         const names = cats.map((c) => c.name);
         setCategories(names);
         if (names.length > 0 && !names.includes(category)) {
-          setCategory(names[0]);
+          setCategory(names[0] as string);
         }
       }).catch(() => {});
     }
@@ -70,7 +70,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   const handleQuickAdd = async (template: ItemTemplate) => {
     setSubmitting(true);
     try {
-      const item = await shoppingApi.addItemFromTemplate(template.id, currentUserId);
+      const item = await shoppingApi.addItemFromTemplate(template.id, currentUserId, listId);
       onAdded(item);
     } catch {
       // Error handling
