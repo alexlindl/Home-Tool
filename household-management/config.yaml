@@ -1,6 +1,6 @@
 name: "Household Management"
 description: "Manage household tasks and shopping lists directly from Home Assistant"
-version: "0.2.0-alpha"
+version: "0.3.0-alpha"
 slug: "household-management"
 url: "https://github.com/alexlindl/Home-Tool"
 arch:
@@ -11,7 +11,7 @@ boot: auto
 ingress: true
 ingress_port: 8023
 ingress_entry: "/"
-panel_icon: "mdi:home-assistant"
+panel_icon: "mdi:clipboard-check-outline"
 panel_title: "Household"
 webui: "http://[HOST]:[PORT:8023]"
 ports:
