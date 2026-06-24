@@ -7,10 +7,12 @@ import { ShoppingService, ShoppingItemInput, ShoppingValidationError } from './S
 import { ShoppingItem, ItemTemplate } from '../models/Shopping';
 import * as shoppingQueries from '../db/shoppingQueries';
 import * as userQueries from '../db/userQueries';
+import * as categoryQueries from '../db/categoryQueries';
 
 // Mock the database query modules
 jest.mock('../db/shoppingQueries');
 jest.mock('../db/userQueries');
+jest.mock('../db/categoryQueries');
 
 const mockAddItem = shoppingQueries.addItem as jest.MockedFunction<typeof shoppingQueries.addItem>;
 const mockGetItemById = shoppingQueries.getItemById as jest.MockedFunction<typeof shoppingQueries.getItemById>;
@@ -23,6 +25,7 @@ const mockCreateItemTemplate = shoppingQueries.createItemTemplate as jest.Mocked
 const mockGetItemTemplateById = shoppingQueries.getItemTemplateById as jest.MockedFunction<typeof shoppingQueries.getItemTemplateById>;
 const mockIncrementItemTemplateUsage = shoppingQueries.incrementItemTemplateUsage as jest.MockedFunction<typeof shoppingQueries.incrementItemTemplateUsage>;
 const mockGetUserById = userQueries.getUserById as jest.MockedFunction<typeof userQueries.getUserById>;
+const mockGetAllCategories = categoryQueries.getAllCategories as jest.MockedFunction<typeof categoryQueries.getAllCategories>;
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -75,6 +78,17 @@ describe('ShoppingService', () => {
   beforeEach(() => {
     shoppingService = new ShoppingService();
     jest.clearAllMocks();
+
+    // Mock getAllCategories to return default categories for all tests
+    mockGetAllCategories.mockResolvedValue([
+      { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
+    ]);
   });
 
   // ── addItem ────────────────────────────────────────────────────────────────
@@ -158,6 +172,15 @@ describe('ShoppingService', () => {
       it('should allow any household member to add items', async () => {
         for (const user of Object.values(mockUsers)) {
           jest.clearAllMocks();
+          mockGetAllCategories.mockResolvedValue([
+            { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
+          ]);
           mockGetUserById.mockResolvedValue(user);
           mockAddItem.mockResolvedValue({ ...mockShoppingItem, addedBy: user.id });
           mockGetItemTemplates.mockResolvedValue([]);
@@ -235,6 +258,15 @@ describe('ShoppingService', () => {
 
         for (const category of validCategories) {
           jest.clearAllMocks();
+          mockGetAllCategories.mockResolvedValue([
+            { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
+            { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
+          ]);
           mockGetUserById.mockResolvedValue(mockUsers.alex);
           mockAddItem.mockResolvedValue({ ...mockShoppingItem, category });
           mockGetItemTemplates.mockResolvedValue([]);
@@ -442,6 +474,15 @@ describe('ShoppingService', () => {
     it('should allow any household member to purchase an item', async () => {
       for (const user of Object.values(mockUsers)) {
         jest.clearAllMocks();
+        mockGetAllCategories.mockResolvedValue([
+          { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
+          { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
+          { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
+          { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
+          { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
+          { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
+          { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
+        ]);
         mockGetItemById.mockResolvedValue(mockShoppingItem);
         mockGetUserById.mockResolvedValue(user);
         mockPurchaseItem.mockResolvedValue({
@@ -468,7 +509,7 @@ describe('ShoppingService', () => {
       const result = await shoppingService.getShoppingList();
 
       expect(result).toEqual(items);
-      expect(mockGetShoppingList).toHaveBeenCalledWith();
+      expect(mockGetShoppingList).toHaveBeenCalledWith(undefined, undefined);
     });
 
     it('should return empty array when no items exist', async () => {
@@ -493,7 +534,7 @@ describe('ShoppingService', () => {
       const result = await shoppingService.getItemsByCategory('dairy');
 
       expect(result).toEqual(dairyItems);
-      expect(mockGetShoppingList).toHaveBeenCalledWith('dairy');
+      expect(mockGetShoppingList).toHaveBeenCalledWith('dairy', undefined);
     });
 
     it('should return empty array when no items exist for category', async () => {
@@ -502,7 +543,7 @@ describe('ShoppingService', () => {
       const result = await shoppingService.getItemsByCategory('frozen');
 
       expect(result).toEqual([]);
-      expect(mockGetShoppingList).toHaveBeenCalledWith('frozen');
+      expect(mockGetShoppingList).toHaveBeenCalledWith('frozen', undefined);
     });
 
     it('should throw ShoppingValidationError for invalid category', async () => {

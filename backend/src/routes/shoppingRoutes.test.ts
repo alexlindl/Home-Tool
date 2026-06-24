@@ -7,10 +7,12 @@ import request from 'supertest';
 import app from '../index';
 import * as shoppingQueries from '../db/shoppingQueries';
 import * as userQueries from '../db/userQueries';
+import * as categoryQueries from '../db/categoryQueries';
 
 // Mock the database queries
 jest.mock('../db/shoppingQueries');
 jest.mock('../db/userQueries');
+jest.mock('../db/categoryQueries');
 
 const mockUser = {
   id: 'user-uuid-1',
@@ -50,6 +52,17 @@ const mockTemplate = {
 describe('Shopping API Routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Mock getAllCategories to return valid categories for all route tests
+    (categoryQueries.getAllCategories as jest.Mock).mockResolvedValue([
+      { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
+    ]);
   });
 
   // ─── POST /api/shopping ─────────────────────────────────────────────────────
@@ -220,7 +233,7 @@ describe('Shopping API Routes', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('items');
-      expect(shoppingQueries.getShoppingList).toHaveBeenCalledWith('dairy');
+      expect(shoppingQueries.getShoppingList).toHaveBeenCalledWith('dairy', undefined);
     });
 
     it('should return 400 for invalid category', async () => {

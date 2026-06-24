@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { shoppingService, ShoppingValidationError } from '../services/ShoppingService';
 import { Category } from '../models/Shopping';
+import { getAllCategories } from '../db/categoryQueries';
 
 const router = Router();
 
@@ -174,13 +175,16 @@ router.put('/templates/:id', async (req: Request, res: Response): Promise<void> 
     }
 
     // Validate category if provided
-    const validCategories: Category[] = ['produce', 'dairy', 'bakery', 'meat', 'frozen', 'pantry', 'household'];
-    if (category !== undefined && !validCategories.includes(category)) {
-      res.status(400).json({
-        status: 'error',
-        message: `Category must be one of: ${validCategories.join(', ')}`,
-      });
-      return;
+    if (category !== undefined) {
+      const categories = await getAllCategories();
+      const validCategoryNames = categories.map(c => c.name);
+      if (!validCategoryNames.includes(category)) {
+        res.status(400).json({
+          status: 'error',
+          message: `Invalid category. Must be one of: ${validCategoryNames.join(', ')}`,
+        });
+        return;
+      }
     }
 
     const { updateItemTemplate } = await import('../db/shoppingQueries');

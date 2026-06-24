@@ -20,19 +20,7 @@ import {
   UpdateItemInput,
 } from '../db/shoppingQueries';
 import { getUserById } from '../db/userQueries';
-
-/**
- * Valid categories for shopping items
- */
-const VALID_CATEGORIES: Category[] = [
-  'produce',
-  'dairy',
-  'bakery',
-  'meat',
-  'frozen',
-  'pantry',
-  'household',
-];
+import { getAllCategories } from '../db/categoryQueries';
 
 /**
  * Input for adding a shopping item via the service layer.
@@ -68,21 +56,34 @@ export class ShoppingValidationError extends Error {
  */
 export class ShoppingService {
   /**
+   * Validate that a category exists in the database.
+   * @throws ShoppingValidationError if category is not found in DB
+   */
+  private async validateCategory(category: string): Promise<void> {
+    const categories = await getAllCategories();
+    const validNames = categories.map(c => c.name);
+    if (!validNames.includes(category)) {
+      throw new ShoppingValidationError(
+        `Category must be one of: ${validNames.join(', ')}`
+      );
+    }
+  }
+
+  /**
    * Validate shopping item input before persisting.
    * @throws ShoppingValidationError if any field is invalid
    */
-  private validateItemInput(input: ShoppingItemInput): void {
+  private async validateItemInput(input: ShoppingItemInput): Promise<void> {
     // Requirement 7.3 – name is required
     if (!input.name || input.name.trim().length === 0) {
       throw new ShoppingValidationError('Item name is required');
     }
 
     // Requirement 9.1 – category must be a valid category
-    if (!input.category || !VALID_CATEGORIES.includes(input.category)) {
-      throw new ShoppingValidationError(
-        `Category must be one of: ${VALID_CATEGORIES.join(', ')}`
-      );
+    if (!input.category) {
+      throw new ShoppingValidationError('Category is required');
     }
+    await this.validateCategory(input.category);
 
     // addedBy is required
     if (!input.addedBy || input.addedBy.trim().length === 0) {
@@ -104,7 +105,7 @@ export class ShoppingService {
    */
   async addItem(input: ShoppingItemInput): Promise<ShoppingItem> {
     // Validate all fields
-    this.validateItemInput(input);
+    await this.validateItemInput(input);
 
     // Requirement 7.2 – verify the user exists
     const user = await getUserById(input.addedBy);
@@ -248,11 +249,7 @@ export class ShoppingService {
    * @throws ShoppingValidationError if category is invalid
    */
   async getItemsByCategory(category: Category, listId?: string): Promise<ShoppingItem[]> {
-    if (!VALID_CATEGORIES.includes(category)) {
-      throw new ShoppingValidationError(
-        `Category must be one of: ${VALID_CATEGORIES.join(', ')}`
-      );
-    }
+    await this.validateCategory(category);
 
     return dbGetShoppingList(category, listId);
   }
@@ -273,10 +270,8 @@ export class ShoppingService {
     }
 
     // Validate category if provided
-    if (updates.category && !VALID_CATEGORIES.includes(updates.category)) {
-      throw new ShoppingValidationError(
-        `Category must be one of: ${VALID_CATEGORIES.join(', ')}`
-      );
+    if (updates.category) {
+      await this.validateCategory(updates.category);
     }
 
     // Validate name if provided
