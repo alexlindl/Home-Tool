@@ -73,7 +73,7 @@ export const ShoppingList: React.FC = () => {
         if (!groups[item.category]) {
           groups[item.category] = [];
         }
-        groups[item.category].push(item);
+        groups[item.category]!.push(item);
       }
     }
     return groups;
