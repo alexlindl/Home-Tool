@@ -2,13 +2,19 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
-## [0.3.0-alpha] - 2026-06-24
+## [0.3.1-alpha] - 2026-06-24
 
 ### Fixed
 
 - Shopping lists now use categories configured in Settings (previously rejected custom categories with a validation error)
-- Replaced hardcoded category validation with dynamic database-backed lookups
+- Replaced hardcoded category validation with dynamic database-backed lookups (backend)
+- Category dropdown in Add Item and Edit Item forms now fetches categories dynamically from the API (frontend)
 - Template updates now accept any valid category from the categories table
+
+### Changed
+
+- Sidebar panel icon updated from `mdi:home-assistant` to `mdi:clipboard-check-outline`
+- Generated proper icon.png (128×128) and logo.png (256×256) for the add-on store (were placeholder text files)
 
 ## [0.2.0-alpha] - 2026-06-04
 

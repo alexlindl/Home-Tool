@@ -79,16 +79,10 @@ export interface TaskHistory {
 // ============================================================
 
 /**
- * Valid categories for shopping items (supermarket areas)
+ * Valid categories for shopping items.
+ * Widened to string — categories are now managed dynamically via /api/categories.
  */
-export type Category =
-  | 'produce'
-  | 'dairy'
-  | 'bakery'
-  | 'meat'
-  | 'frozen'
-  | 'pantry'
-  | 'household';
+export type Category = string;
 
 /**
  * Shopping item model

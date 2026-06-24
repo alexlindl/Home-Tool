@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { ShoppingItem, Category } from '@/types';
-import { shoppingApi } from '@/services/api';
+import { shoppingApi, categoryApi } from '@/services/api';
 
 interface EditShoppingItemFormProps {
   open: boolean;
@@ -15,16 +15,6 @@ interface EditShoppingItemFormProps {
   onClose: () => void;
   onSaved: (item: ShoppingItem) => void;
 }
-
-const categories: Category[] = [
-  'produce',
-  'dairy',
-  'bakery',
-  'meat',
-  'frozen',
-  'pantry',
-  'household',
-];
 
 export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
   open,
@@ -34,6 +24,7 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('produce');
+  const [categories, setCategories] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -42,6 +33,14 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
       setCategory(item.category);
     }
   }, [item]);
+
+  useEffect(() => {
+    if (open) {
+      categoryApi.getAll().then((cats) => {
+        setCategories(cats.map((c) => c.name));
+      }).catch(() => {});
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

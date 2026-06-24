@@ -4,16 +4,24 @@
  */
 
 /**
- * Valid categories for shopping items
+ * Valid categories for shopping items.
+ * Widened to string to allow dynamic, DB-backed categories beyond the original defaults.
+ * Runtime validation (via getAllCategories()) enforces that the category exists in the DB.
  */
-export type Category =
-  | 'produce'
-  | 'dairy'
-  | 'bakery'
-  | 'meat'
-  | 'frozen'
-  | 'pantry'
-  | 'household';
+export type Category = string;
+
+/**
+ * Default categories (kept for reference/seeding purposes).
+ */
+export const DEFAULT_CATEGORIES = [
+  'produce',
+  'dairy',
+  'bakery',
+  'meat',
+  'frozen',
+  'pantry',
+  'household',
+] as const;
 
 /**
  * Shopping item model

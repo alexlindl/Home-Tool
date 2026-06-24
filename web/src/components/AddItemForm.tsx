@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { ShoppingItem, ItemTemplate, Category } from '@/types';
-import { shoppingApi } from '@/services/api';
+import { shoppingApi, categoryApi } from '@/services/api';
 
 interface AddItemFormProps {
   open: boolean;
@@ -18,16 +18,6 @@ interface AddItemFormProps {
   listId?: string;
 }
 
-const categories: Category[] = [
-  'produce',
-  'dairy',
-  'bakery',
-  'meat',
-  'frozen',
-  'pantry',
-  'household',
-];
-
 export const AddItemForm: React.FC<AddItemFormProps> = ({
   open,
   onClose,
@@ -37,12 +27,20 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('produce');
+  const [categories, setCategories] = useState<string[]>([]);
   const [templates, setTemplates] = useState<ItemTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
       shoppingApi.getTemplates().then(setTemplates).catch(() => {});
+      categoryApi.getAll().then((cats) => {
+        const names = cats.map((c) => c.name);
+        setCategories(names);
+        if (names.length > 0 && !names.includes(category)) {
+          setCategory(names[0]);
+        }
+      }).catch(() => {});
     }
   }, [open]);
 
