@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.4-alpha] - 2026-06-26
+
+### Added
+
+- About section in Settings page showing version, database status, platform, tech stack, and GitHub link
+
 ## [0.5.3-alpha] - 2026-06-26
 
 ### Fixed

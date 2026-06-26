@@ -21,13 +21,18 @@ import {
 } from '@/services/api';
 import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
 
-type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme';
+type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme' | 'about';
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'templates', label: 'Templates' },
   { id: 'categories', label: 'Categories' },
   { id: 'users', label: 'Users' },
   { id: 'lists', label: 'Lists' },
+  { id: 'database', label: 'Database' },
+  { id: 'backup', label: 'Backup' },
+  { id: 'theme', label: 'Theme' },
+  { id: 'about', label: 'About' },
+];
   { id: 'database', label: 'Database' },
   { id: 'backup', label: 'Backup' },
   { id: 'theme', label: 'Theme' },
@@ -1037,6 +1042,77 @@ const BackupRestore: React.FC = () => {
 };
 
 // ===========================================================================
+// AboutSection
+// ===========================================================================
+
+const APP_VERSION = '0.5.4-alpha';
+
+const AboutSection: React.FC = () => {
+  const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
+
+  useEffect(() => {
+    fetch('./health/db')
+      .then((res) => res.json())
+      .then((data) => setServerInfo(data))
+      .catch(() => setServerInfo(null));
+  }, []);
+
+  return (
+    <div className="settings-section">
+      <h2>About</h2>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <span style={{ fontSize: '2rem' }}>🏠</span>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Household Management</h3>
+            <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              Home Assistant Add-on
+            </p>
+          </div>
+        </div>
+
+        <div className="settings-list">
+          <div className="settings-list-item">
+            <span className="settings-list-name">Version</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>{APP_VERSION}</span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Database</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              {serverInfo?.database === 'connected' ? '✅ Connected' : serverInfo?.database === 'error' ? '❌ Error' : '⏳ Checking...'}
+            </span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Platform</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Home Assistant (Ingress)</span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Stack</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>React + Node.js + PostgreSQL</span>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 8 }}>
+          <a
+            href="https://github.com/alexlindl/Home-Tool"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--color-primary)', textDecoration: 'none', fontSize: '0.875rem' }}
+          >
+            📋 View on GitHub →
+          </a>
+        </div>
+
+        <p style={{ marginTop: 8, color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>
+          Manage household tasks and shopping lists directly from Home Assistant.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ===========================================================================
 // Settings Page (Main)
 // ===========================================================================
 
@@ -1079,6 +1155,7 @@ export const Settings: React.FC = () => {
         {activeTab === 'lists' && <ListManagement />}
         {activeTab === 'backup' && <BackupRestore />}
         {activeTab === 'theme' && <ThemeSelector />}
+        {activeTab === 'about' && <AboutSection />}
       </div>
     </div>
   );

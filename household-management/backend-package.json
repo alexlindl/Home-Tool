@@ -1,6 +1,6 @@
 {
   "name": "household-management-backend",
-  "version": "0.5.3-alpha",
+  "version": "0.5.4-alpha",
   "description": "Backend API for Household Management App",
   "main": "dist/index.js",
   "scripts": {
