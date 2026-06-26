@@ -2,6 +2,13 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.1-alpha] - 2026-06-26
+
+### Fixed
+
+- Fix TS2322 build error: assigneeName could be null when passed to UserBadge component
+- Added non-null assertion on task.assignedTo fallback in TaskCard
+
 ## [0.5.0-alpha] - 2026-06-26
 
 ### Added

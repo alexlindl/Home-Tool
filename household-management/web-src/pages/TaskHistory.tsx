@@ -92,8 +92,8 @@ export const TaskHistory: React.FC = () => {
             </div>
             <div className="history-card-details">
               <span className="history-card-assigned">
-                Assigned to: <UserBadge userName={userNames[entry.assignedTo] || entry.assignedTo} size="sm" />
-                <span className="history-card-name">{userNames[entry.assignedTo] || entry.assignedTo}</span>
+                Assigned to: <UserBadge userName={entry.assignedTo ? (userNames[entry.assignedTo] || entry.assignedTo) : 'Anyone'} size="sm" />
+                <span className="history-card-name">{entry.assignedTo ? (userNames[entry.assignedTo] || entry.assignedTo) : 'Anyone'}</span>
               </span>
               <span className="history-card-completed">
                 Completed by: <UserBadge userName={userNames[entry.completedBy] || entry.completedBy} size="sm" />

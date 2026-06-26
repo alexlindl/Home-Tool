@@ -67,7 +67,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 }) => {
   const status = getTaskStatus(task.dueDate);
   const isAnyone = task.assignedTo === null;
-  const assigneeName = isAnyone ? 'Anyone' : (userNames[task.assignedTo!] || task.assignedTo);
+  const assigneeName = isAnyone ? 'Anyone' : (userNames[task.assignedTo!] || task.assignedTo!);
 
   const cardClass = [
     'task-card',

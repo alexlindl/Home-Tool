@@ -68,7 +68,7 @@ export interface TaskHistory {
   id: string;
   taskId: string;
   title: string;
-  assignedTo: string; // User ID
+  assignedTo: string | null; // User ID or null for "Anyone" tasks
   completedBy: string; // User ID
   completedAt: string; // ISO date string
   wasRecurring: boolean;
