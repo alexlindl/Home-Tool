@@ -18,7 +18,8 @@ interface TaskCardProps {
   isCurrentUser?: boolean;
 }
 
-export function getTaskStatus(dueDate: string): 'overdue' | 'due-today' | 'normal' {
+export function getTaskStatus(dueDate: string | null): 'overdue' | 'due-today' | 'normal' {
+  if (!dueDate) return 'normal'; // Backlog tasks are never overdue
   const now = new Date();
   const due = new Date(dueDate);
 
@@ -34,7 +35,8 @@ export function getTaskStatus(dueDate: string): 'overdue' | 'due-today' | 'norma
   return 'normal';
 }
 
-export function formatTaskDate(dateStr: string): string {
+export function formatTaskDate(dateStr: string | null): string {
+  if (!dateStr) return 'No due date';
   const date = new Date(dateStr);
   const hours = date.getHours();
   const minutes = date.getMinutes();
@@ -65,7 +67,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 }) => {
   const status = getTaskStatus(task.dueDate);
   const isAnyone = task.assignedTo === null;
-  const assigneeName = isAnyone ? 'Anyone' : (userNames[task.assignedTo] || task.assignedTo);
+  const assigneeName = isAnyone ? 'Anyone' : (userNames[task.assignedTo!] || task.assignedTo);
 
   const cardClass = [
     'task-card',

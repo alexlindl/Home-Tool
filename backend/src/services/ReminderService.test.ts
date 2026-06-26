@@ -164,7 +164,7 @@ describe('ReminderService', () => {
         taskId: task.id,
         title: task.title,
         assignedTo: task.assignedTo,
-        dueDate: task.dueDate.toISOString(),
+        dueDate: task.dueDate!.toISOString(),
         type: 'upcoming',
         message: expect.stringContaining(task.title),
         sentAt: expect.any(String),
@@ -258,7 +258,10 @@ describe('ReminderService', () => {
       // Advance time by one interval
       jest.advanceTimersByTime(1000);
 
-      // Wait for async operations
+      // Wait for async operations (both checkReminders and checkOverdueTasks)
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       await Promise.resolve();
 
       // getTasks should be called for both checkReminders and checkOverdueTasks

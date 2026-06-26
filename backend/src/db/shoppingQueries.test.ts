@@ -68,13 +68,16 @@ describe('Shopping Item Database Queries', () => {
       };
 
       const mockRow = makeMockItemRow({ name: 'Apples', category: 'produce', added_by: 'user-1' });
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      // First call returns default list, second call returns inserted item
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await addItem(input);
 
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO shopping_items'),
-        [input.name, input.category, input.addedBy]
+        [input.name, input.category, input.addedBy, 'default-list-1']
       );
 
       expect(result).toMatchObject({
@@ -96,7 +99,9 @@ describe('Shopping Item Database Queries', () => {
       };
 
       const mockRow = makeMockItemRow({ name: 'Bread', category: 'bakery', added_by: 'user-2' });
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await addItem(input);
 

@@ -56,6 +56,9 @@ describe('Task Database Queries', () => {
         recurrence_frequency: null,
         recurrence_interval: null,
         recurrence_end_date: null,
+        recurrence_type: null,
+        recurrence_day_of_week: null,
+        recurrence_ordinal_week: null,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -63,7 +66,10 @@ describe('Task Database Queries', () => {
         updated_at: new Date('2024-01-10T10:00:00Z'),
       };
 
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      // First call returns default list, second call returns the inserted task
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await createTask(input);
 
@@ -79,7 +85,10 @@ describe('Task Database Queries', () => {
           null,
           null,
           null,
-          'task-1',
+          null,
+          null,
+          null,
+          'default-list-1',
         ]
       );
 
@@ -117,6 +126,9 @@ describe('Task Database Queries', () => {
         recurrence_frequency: 'weekly',
         recurrence_interval: 1,
         recurrence_end_date: null,
+        recurrence_type: null,
+        recurrence_day_of_week: null,
+        recurrence_ordinal_week: null,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -124,7 +136,9 @@ describe('Task Database Queries', () => {
         updated_at: new Date('2024-01-10T10:00:00Z'),
       };
 
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await createTask(input);
 
@@ -140,7 +154,10 @@ describe('Task Database Queries', () => {
           'weekly',
           1,
           null,
-          'task-2',
+          null,
+          null,
+          null,
+          'default-list-1',
         ]
       );
 
@@ -172,6 +189,9 @@ describe('Task Database Queries', () => {
         recurrence_frequency: null,
         recurrence_interval: null,
         recurrence_end_date: null,
+        recurrence_type: null,
+        recurrence_day_of_week: null,
+        recurrence_ordinal_week: null,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -179,7 +199,9 @@ describe('Task Database Queries', () => {
         updated_at: new Date('2024-01-10T10:00:00Z'),
       };
 
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await createTask(input);
 
@@ -195,7 +217,10 @@ describe('Task Database Queries', () => {
           null,
           null,
           null,
-          'task-3',
+          null,
+          null,
+          null,
+          'default-list-1',
         ]
       );
 

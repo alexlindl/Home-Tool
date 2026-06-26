@@ -278,10 +278,19 @@ describe('TaskService', () => {
         ).rejects.toThrow('Task title is required');
       });
 
-      it('should throw TaskValidationError when dueDate is missing', async () => {
+      it('should allow creating a backlog task with null dueDate', async () => {
+        mockGetUserById.mockResolvedValue(mockUsers.alex);
+        mockCreateTask.mockResolvedValue({ ...mockTask, dueDate: null });
+
+        const result = await taskService.createTask({ ...baseTaskInput, dueDate: null });
+
+        expect(result.dueDate).toBeNull();
+      });
+
+      it('should throw TaskValidationError when dueDate is null and isRecurring is true', async () => {
         await expect(
-          taskService.createTask({ ...baseTaskInput, dueDate: null as unknown as Date })
-        ).rejects.toThrow(TaskValidationError);
+          taskService.createTask({ ...baseTaskInput, dueDate: null, isRecurring: true })
+        ).rejects.toThrow('Recurring tasks must have a due date');
       });
 
       it('should throw TaskValidationError when dueDate is invalid', async () => {

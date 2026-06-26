@@ -349,6 +349,106 @@ describe('Shopping API Routes', () => {
     });
   });
 
+  // ─── GET /api/shopping/templates/search ───────────────────────────────────────
+
+  describe('GET /api/shopping/templates/search', () => {
+    const mockSearchResults = [
+      {
+        id: 'tmpl-uuid-1',
+        name: 'Milk',
+        category: 'dairy' as const,
+        isPrePopulated: true,
+        createdBy: undefined,
+        usageCount: 5,
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      },
+      {
+        id: 'tmpl-uuid-2',
+        name: 'Almond Milk',
+        category: 'dairy' as const,
+        isPrePopulated: false,
+        createdBy: 'user-uuid-1',
+        usageCount: 2,
+        createdAt: new Date('2024-02-01T00:00:00.000Z'),
+      },
+    ];
+
+    it('should return matching templates with 200', async () => {
+      (shoppingQueries.searchItemTemplates as jest.Mock).mockResolvedValue(mockSearchResults);
+
+      const response = await request(app)
+        .get('/api/shopping/templates/search?q=mil')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('templates');
+      expect(response.body.templates).toHaveLength(2);
+      expect(shoppingQueries.searchItemTemplates).toHaveBeenCalledWith('mil', 8);
+    });
+
+    it('should accept custom limit parameter', async () => {
+      (shoppingQueries.searchItemTemplates as jest.Mock).mockResolvedValue([mockSearchResults[0]]);
+
+      const response = await request(app)
+        .get('/api/shopping/templates/search?q=mil&limit=5')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('templates');
+      expect(shoppingQueries.searchItemTemplates).toHaveBeenCalledWith('mil', 5);
+    });
+
+    it('should cap limit at 20', async () => {
+      (shoppingQueries.searchItemTemplates as jest.Mock).mockResolvedValue([]);
+
+      await request(app)
+        .get('/api/shopping/templates/search?q=mil&limit=50')
+        .expect(200);
+
+      expect(shoppingQueries.searchItemTemplates).toHaveBeenCalledWith('mil', 20);
+    });
+
+    it('should return 400 when query is missing', async () => {
+      const response = await request(app)
+        .get('/api/shopping/templates/search')
+        .expect(400);
+
+      expect(response.body).toHaveProperty('status', 'error');
+      expect(response.body.message).toBe('Search query must be at least 2 characters');
+    });
+
+    it('should return 400 when query is less than 2 characters', async () => {
+      const response = await request(app)
+        .get('/api/shopping/templates/search?q=m')
+        .expect(400);
+
+      expect(response.body).toHaveProperty('status', 'error');
+      expect(response.body.message).toBe('Search query must be at least 2 characters');
+    });
+
+    it('should return empty array when no templates match', async () => {
+      (shoppingQueries.searchItemTemplates as jest.Mock).mockResolvedValue([]);
+
+      const response = await request(app)
+        .get('/api/shopping/templates/search?q=xyz')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('templates');
+      expect(response.body.templates).toHaveLength(0);
+    });
+
+    it('should handle database errors gracefully', async () => {
+      (shoppingQueries.searchItemTemplates as jest.Mock).mockRejectedValue(
+        new Error('Database connection failed')
+      );
+
+      const response = await request(app)
+        .get('/api/shopping/templates/search?q=mil')
+        .expect(500);
+
+      expect(response.body).toHaveProperty('status', 'error');
+      expect(response.body).toHaveProperty('message', 'Failed to search item templates');
+    });
+  });
+
   // ─── GET /api/shopping/:id ──────────────────────────────────────────────────
 
   describe('GET /api/shopping/:id', () => {

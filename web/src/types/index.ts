@@ -38,7 +38,7 @@ export interface Task {
   description?: string;
   assignedTo: string | null; // User ID or null for "Anyone"
   createdBy: string; // User ID
-  dueDate: string; // ISO date string
+  dueDate: string | null; // ISO date string, null for backlog tasks
   isRecurring: boolean;
   recurrencePattern?: RecurrencePattern;
   status: 'pending' | 'completed';
@@ -123,7 +123,7 @@ export interface CreateTaskInput {
   title: string;
   description?: string;
   assignedTo: string | null; // User ID or null for "Anyone"
-  dueDate: string; // ISO date string
+  dueDate: string | null; // ISO date string, null for backlog tasks
   isRecurring: boolean;
   recurrencePattern?: RecurrencePattern;
   saveAsTemplate?: boolean; // opt-in template saving

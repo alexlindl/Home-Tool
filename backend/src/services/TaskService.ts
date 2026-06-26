@@ -24,6 +24,11 @@ import {
   findTemplateByTitle,
 } from '../db/taskQueries';
 import { getUserById } from '../db/userQueries';
+import {
+  EnhancedRecurrencePattern,
+  validateRecurrencePattern,
+  calculateNextDueDate as recurrenceCalculateNextDueDate,
+} from '../utils/recurrenceEngine';
 
 /**
  * Input for creating a task via the service layer.
@@ -34,8 +39,10 @@ export interface TaskInput {
   description?: string;
   assignedTo: string | null;   // User ID or null for "Anyone"
   createdBy: string;    // User ID
-  dueDate: Date;
+  dueDate: Date | null;        // Now nullable for backlog tasks
   isRecurring: boolean;
+  recurrencePattern?: EnhancedRecurrencePattern;  // New enhanced pattern field
+  // Legacy fields kept for backwards compatibility:
   recurrenceFrequency?: 'daily' | 'weekly' | 'monthly';
   recurrenceInterval?: number;
   recurrenceEndDate?: Date;
@@ -73,17 +80,22 @@ export class TaskService {
    * @throws TaskValidationError if any field is invalid
    */
   private validateTaskInput(input: TaskInput): void {
-    // Requirement 2.1 – title, dueDate, and assignedTo are required
+    // Requirement 2.1 – title is required
     if (!input.title || input.title.trim().length === 0) {
       throw new TaskValidationError('Task title is required');
     }
 
-    if (!input.dueDate) {
-      throw new TaskValidationError('Task due date is required');
+    // dueDate is now nullable for backlog tasks (Requirement 5.3)
+    // But if provided, it must be a valid date
+    if (input.dueDate !== null && input.dueDate !== undefined) {
+      if (!(input.dueDate instanceof Date) || isNaN(input.dueDate.getTime())) {
+        throw new TaskValidationError('Task due date must be a valid date');
+      }
     }
 
-    if (!(input.dueDate instanceof Date) || isNaN(input.dueDate.getTime())) {
-      throw new TaskValidationError('Task due date must be a valid date');
+    // Requirement 5.7 – recurring tasks must have a due date
+    if (input.dueDate === null && input.isRecurring === true) {
+      throw new TaskValidationError('Recurring tasks must have a due date');
     }
 
     if (!input.assignedTo && input.assignedTo !== null) {
@@ -103,30 +115,42 @@ export class TaskService {
       throw new TaskValidationError('Task must be designated as recurring or one-off');
     }
 
+    // Validate enhanced recurrence pattern if provided
+    if (input.recurrencePattern) {
+      const patternValidation = validateRecurrencePattern(input.recurrencePattern);
+      if (!patternValidation.valid) {
+        throw new TaskValidationError(patternValidation.error || 'Invalid recurrence pattern');
+      }
+    }
+
     // Requirement 2.4 – recurring tasks need a valid recurrence pattern
+    // Either enhanced pattern OR legacy fields must be provided
     if (input.isRecurring) {
-      if (!input.recurrenceFrequency) {
-        throw new TaskValidationError(
-          'Recurring tasks must have a recurrence frequency (daily, weekly, or monthly)'
-        );
-      }
+      if (!input.recurrencePattern) {
+        // Fall back to legacy validation
+        if (!input.recurrenceFrequency) {
+          throw new TaskValidationError(
+            'Recurring tasks must have a recurrence frequency (daily, weekly, or monthly)'
+          );
+        }
 
-      const validFrequencies = ['daily', 'weekly', 'monthly'];
-      if (!validFrequencies.includes(input.recurrenceFrequency)) {
-        throw new TaskValidationError(
-          `Recurrence frequency must be one of: ${validFrequencies.join(', ')}`
-        );
-      }
+        const validFrequencies = ['daily', 'weekly', 'monthly'];
+        if (!validFrequencies.includes(input.recurrenceFrequency)) {
+          throw new TaskValidationError(
+            `Recurrence frequency must be one of: ${validFrequencies.join(', ')}`
+          );
+        }
 
-      if (
-        input.recurrenceInterval === undefined ||
-        input.recurrenceInterval === null ||
-        input.recurrenceInterval <= 0 ||
-        !Number.isInteger(input.recurrenceInterval)
-      ) {
-        throw new TaskValidationError(
-          'Recurring tasks must have a positive integer recurrence interval'
-        );
+        if (
+          input.recurrenceInterval === undefined ||
+          input.recurrenceInterval === null ||
+          input.recurrenceInterval <= 0 ||
+          !Number.isInteger(input.recurrenceInterval)
+        ) {
+          throw new TaskValidationError(
+            'Recurring tasks must have a positive integer recurrence interval'
+          );
+        }
       }
     }
   }
@@ -174,8 +198,11 @@ export class TaskService {
       dueDate: input.dueDate,
       isRecurring: input.isRecurring,
       recurrenceFrequency: input.recurrenceFrequency,
-      recurrenceInterval: input.recurrenceInterval,
-      recurrenceEndDate: input.recurrenceEndDate,
+      recurrenceInterval: input.recurrencePattern?.interval ?? input.recurrenceInterval,
+      recurrenceEndDate: input.recurrencePattern?.endDate ?? input.recurrenceEndDate,
+      recurrenceType: input.recurrencePattern?.type,
+      recurrenceDayOfWeek: input.recurrencePattern?.dayOfWeek,
+      recurrenceOrdinalWeek: input.recurrencePattern?.ordinalWeek,
       listId: input.listId,
     };
 
@@ -372,30 +399,56 @@ export class TaskService {
 
     // Step 4 – generate next occurrence for recurring tasks (Requirement 4.5)
     if (task.isRecurring && task.recurrencePattern) {
-      const nextDueDate = this.calculateNextDueDate(
-        task.dueDate,
-        task.recurrencePattern.frequency,
-        task.recurrencePattern.interval
-      );
+      // Determine if this task has enhanced recurrence data
+      // by checking for recurrence_type via the task's dueDate and pattern
+      const enhancedPattern = this.getEnhancedPatternFromTask(task);
 
-      const nextTaskInput: CreateTaskInput = {
-        title: task.title,
-        description: task.description,
-        assignedTo: task.assignedTo,
-        createdBy: task.createdBy,
-        dueDate: nextDueDate,
-        isRecurring: true,
-        recurrenceFrequency: task.recurrencePattern.frequency,
-        recurrenceInterval: task.recurrencePattern.interval,
-        recurrenceEndDate: task.recurrencePattern.endDate,
-      };
+      let nextDueDate: Date;
+      let nextDbInput: CreateTaskInput;
 
-      await dbCreateTask(nextTaskInput);
+      if (enhancedPattern) {
+        // Use the RecurrenceEngine for enhanced patterns (Requirement 2.5)
+        nextDueDate = recurrenceCalculateNextDueDate(task.dueDate!, enhancedPattern);
+        nextDbInput = {
+          title: task.title,
+          description: task.description,
+          assignedTo: task.assignedTo,
+          createdBy: task.createdBy,
+          dueDate: nextDueDate,
+          isRecurring: true,
+          recurrenceFrequency: task.recurrencePattern.frequency,
+          recurrenceInterval: enhancedPattern.interval,
+          recurrenceEndDate: enhancedPattern.endDate ?? task.recurrencePattern.endDate,
+          recurrenceType: enhancedPattern.type,
+          recurrenceDayOfWeek: enhancedPattern.dayOfWeek,
+          recurrenceOrdinalWeek: enhancedPattern.ordinalWeek,
+        };
+      } else {
+        // Legacy fallback: use old calculation method
+        nextDueDate = this.calculateNextDueDate(
+          task.dueDate!,
+          task.recurrencePattern.frequency,
+          task.recurrencePattern.interval
+        );
+        nextDbInput = {
+          title: task.title,
+          description: task.description,
+          assignedTo: task.assignedTo,
+          createdBy: task.createdBy,
+          dueDate: nextDueDate,
+          isRecurring: true,
+          recurrenceFrequency: task.recurrencePattern.frequency,
+          recurrenceInterval: task.recurrencePattern.interval,
+          recurrenceEndDate: task.recurrencePattern.endDate,
+        };
+      }
+
+      await dbCreateTask(nextDbInput);
     }
   }
 
   /**
-   * Calculate the next due date for a recurring task.
+   * Calculate the next due date for a recurring task (legacy method).
    *
    * @param currentDueDate The current due date of the task
    * @param frequency Recurrence frequency ('daily' | 'weekly' | 'monthly')
@@ -422,6 +475,27 @@ export class TaskService {
     }
 
     return next;
+  }
+
+  /**
+   * Extract an enhanced recurrence pattern from a task, if present.
+   * Tasks with enhanced recurrence have additional fields stored in the DB
+   * that map back to an EnhancedRecurrencePattern.
+   *
+   * @param task The task to check
+   * @returns EnhancedRecurrencePattern or null if only legacy fields exist
+   */
+  private getEnhancedPatternFromTask(task: Task): EnhancedRecurrencePattern | null {
+    if (task.recurrenceType) {
+      return {
+        type: task.recurrenceType as EnhancedRecurrencePattern['type'],
+        interval: task.recurrencePattern?.interval ?? 1,
+        dayOfWeek: task.recurrenceDayOfWeek as EnhancedRecurrencePattern['dayOfWeek'],
+        ordinalWeek: task.recurrenceOrdinalWeek,
+        endDate: task.recurrencePattern?.endDate,
+      };
+    }
+    return null;
   }
 
   /**

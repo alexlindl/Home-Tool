@@ -2,6 +2,29 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.0-alpha] - 2026-06-26
+
+### Added
+
+- Enhanced recurrence patterns: "every N days", "every Tuesday", "every 2nd Wednesday", "every 4 weeks on Saturday"
+- Backlog tasks: create tasks without a due date or assignee for unscheduled work
+- Template search endpoints: autocomplete for task titles and shopping item names (GET /api/tasks/templates/search, GET /api/shopping/templates/search)
+- Inline category creation with case-insensitive duplicate detection (409 response)
+- RecurrenceEngine utility module with full pattern validation and next-date calculation
+- Database migration 006: enhanced recurrence columns, nullable due_date, backlog index
+
+### Changed
+
+- Task form accepts null dueDate and null assignedTo for backlog task creation
+- GET /api/tasks supports ?backlog=true filter for backlog-only queries
+- Tasks with null due date sort last in task listings
+- Backlog tasks are never marked as overdue in frontend or backend
+
+### Fixed
+
+- Frontend TaskCard build error: handle nullable dueDate (TS2538 fix)
+- Frontend TaskDashboard: null-safe sorting and overdue filtering for backlog tasks
+
 ## [0.4.0-alpha] - 2026-06-24
 
 ### Added

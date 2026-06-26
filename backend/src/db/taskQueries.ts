@@ -24,11 +24,14 @@ export interface CreateTaskInput {
   description?: string;
   assignedTo: string | null; // null = "Anyone" assignment
   createdBy: string;
-  dueDate: Date;
+  dueDate: Date | null;      // null = backlog task
   isRecurring: boolean;
   recurrenceFrequency?: 'daily' | 'weekly' | 'monthly';
   recurrenceInterval?: number;
   recurrenceEndDate?: Date;
+  recurrenceType?: string;          // Enhanced pattern type
+  recurrenceDayOfWeek?: string;     // Day for day-based patterns
+  recurrenceOrdinalWeek?: number;   // 1-5 for Nth occurrence
   listId?: string;
 }
 
@@ -38,12 +41,15 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string;
-  assignedTo?: string;
-  dueDate?: Date;
+  assignedTo?: string | null;
+  dueDate?: Date | null;             // null = backlog task
   isRecurring?: boolean;
   recurrenceFrequency?: 'daily' | 'weekly' | 'monthly';
   recurrenceInterval?: number;
   recurrenceEndDate?: Date;
+  recurrenceType?: string | null;          // Enhanced pattern type
+  recurrenceDayOfWeek?: string | null;     // Day for day-based patterns
+  recurrenceOrdinalWeek?: number | null;   // 1-5 for Nth occurrence
   status?: 'pending' | 'completed';
   completedAt?: Date;
   completedBy?: string;
@@ -78,19 +84,23 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
   const result = await query(
     `INSERT INTO tasks (
       title, description, assigned_to, created_by, due_date,
-      is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date, list_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date,
+      recurrence_type, recurrence_day_of_week, recurrence_ordinal_week, list_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     RETURNING *`,
     [
       input.title,
       input.description || null,
       input.assignedTo !== undefined ? input.assignedTo : null, // null = "Anyone"
       input.createdBy,
-      input.dueDate,
+      input.dueDate,             // null for backlog tasks
       input.isRecurring,
       input.recurrenceFrequency || null,
       input.recurrenceInterval || null,
       input.recurrenceEndDate || null,
+      input.recurrenceType || null,
+      input.recurrenceDayOfWeek || null,
+      input.recurrenceOrdinalWeek ?? null,
       listId,
     ]
   );
@@ -141,6 +151,18 @@ export const updateTask = async (id: string, input: UpdateTaskInput): Promise<Ta
   if (input.recurrenceEndDate !== undefined) {
     updates.push(`recurrence_end_date = $${paramCount++}`);
     values.push(input.recurrenceEndDate || null);
+  }
+  if (input.recurrenceType !== undefined) {
+    updates.push(`recurrence_type = $${paramCount++}`);
+    values.push(input.recurrenceType);
+  }
+  if (input.recurrenceDayOfWeek !== undefined) {
+    updates.push(`recurrence_day_of_week = $${paramCount++}`);
+    values.push(input.recurrenceDayOfWeek);
+  }
+  if (input.recurrenceOrdinalWeek !== undefined) {
+    updates.push(`recurrence_ordinal_week = $${paramCount++}`);
+    values.push(input.recurrenceOrdinalWeek);
   }
   if (input.status !== undefined) {
     updates.push(`status = $${paramCount++}`);
@@ -239,7 +261,42 @@ export const getTasks = async (filters?: TaskFilters): Promise<Task[]> => {
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const result = await query(
-    `SELECT * FROM tasks ${whereClause} ORDER BY due_date ASC`,
+    `SELECT * FROM tasks ${whereClause} ORDER BY due_date ASC NULLS LAST`,
+    values
+  );
+
+  return result.rows.map((row: TaskRow) => taskFromRow(row));
+};
+
+/**
+ * Get backlog tasks (tasks with no due date)
+ * @param filters Optional additional filters
+ * @returns Promise<Task[]> Array of backlog tasks
+ */
+export const getBacklogTasks = async (filters?: Omit<TaskFilters, 'dueDateFrom' | 'dueDateTo'>): Promise<Task[]> => {
+  const conditions: string[] = ['due_date IS NULL'];
+  const values: any[] = [];
+  let paramCount = 1;
+
+  if (filters?.assignedTo) {
+    conditions.push(`(assigned_to = $${paramCount} OR assigned_to IS NULL)`);
+    values.push(filters.assignedTo);
+    paramCount++;
+  }
+
+  if (filters?.status) {
+    conditions.push(`status = $${paramCount++}`);
+    values.push(filters.status);
+  }
+
+  if (filters?.listId) {
+    conditions.push(`list_id = $${paramCount++}`);
+    values.push(filters.listId);
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const result = await query(
+    `SELECT * FROM tasks ${whereClause} ORDER BY created_at ASC`,
     values
   );
 
@@ -446,6 +503,28 @@ export const updateTaskTemplate = async (
 export const deleteTaskTemplate = async (id: string): Promise<boolean> => {
   const result = await query('DELETE FROM task_templates WHERE id = $1', [id]);
   return result.rowCount !== null && result.rowCount > 0;
+};
+
+/**
+ * Search task templates by substring match (case-insensitive), ordered by usage_count DESC
+ * @param searchQuery Search string to match against template titles
+ * @param limit Maximum number of results to return (default 8, max 20)
+ * @returns Promise<TaskTemplate[]> Array of matching task templates
+ */
+export const searchTaskTemplates = async (
+  searchQuery: string,
+  limit?: number
+): Promise<TaskTemplate[]> => {
+  const effectiveLimit = Math.min(limit ?? 8, 20);
+  const result = await query(
+    `SELECT * FROM task_templates
+     WHERE LOWER(title) LIKE '%' || LOWER($1) || '%'
+     ORDER BY usage_count DESC
+     LIMIT $2`,
+    [searchQuery, effectiveLimit]
+  );
+
+  return result.rows.map((row: TaskTemplateRow) => taskTemplateFromRow(row));
 };
 
 /**

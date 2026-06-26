@@ -103,9 +103,11 @@ describe('Property 2: Task Creation Completeness', () => {
   it('every task has a due date', () => {
     fc.assert(
       fc.property(arbTask, (task) => {
+        // Note: arbTask generates only non-null dueDate tasks.
+        // Backlog tasks (null dueDate) are tested separately.
         expect(task.dueDate).toBeDefined();
         expect(task.dueDate).toBeInstanceOf(Date);
-        expect(isNaN(task.dueDate.getTime())).toBe(false);
+        expect(isNaN(task.dueDate!.getTime())).toBe(false);
       })
     );
   });

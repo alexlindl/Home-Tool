@@ -98,6 +98,7 @@ export const TaskDashboard: React.FC = () => {
       const now = new Date();
       result = result.filter((task) => {
         if (task.status !== 'pending') return false;
+        if (!task.dueDate) return false; // Backlog tasks are never overdue
         const due = new Date(task.dueDate);
         return due <= now;
       });
@@ -107,6 +108,10 @@ export const TaskDashboard: React.FC = () => {
     result.sort((a, b) => {
       switch (sortOption) {
         case 'dueDate':
+          // Null due dates (backlog) sort last
+          if (!a.dueDate && !b.dueDate) return 0;
+          if (!a.dueDate) return 1;
+          if (!b.dueDate) return -1;
           return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
         case 'assignee': {
           const nameA = a.assignedTo === null ? '' : (userNames[a.assignedTo] || a.assignedTo).toLowerCase();

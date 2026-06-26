@@ -272,6 +272,28 @@ export const getItemTemplates = async (
 };
 
 /**
+ * Search item templates by substring match (case-insensitive), ordered by usage_count DESC
+ * @param searchQuery Search string to match against template names
+ * @param limit Maximum number of results to return (default 8, max 20)
+ * @returns Promise<ItemTemplate[]> Array of matching item templates
+ */
+export const searchItemTemplates = async (
+  searchQuery: string,
+  limit?: number
+): Promise<ItemTemplate[]> => {
+  const effectiveLimit = Math.min(limit ?? 8, 20);
+  const result = await query(
+    `SELECT * FROM item_templates
+     WHERE LOWER(name) LIKE '%' || LOWER($1) || '%'
+     ORDER BY usage_count DESC
+     LIMIT $2`,
+    [searchQuery, effectiveLimit]
+  );
+
+  return result.rows.map((row: ItemTemplateRow) => itemTemplateFromRow(row));
+};
+
+/**
  * Increment the usage count for an item template
  * @param id Item template UUID
  * @returns Promise<ItemTemplate | null> Updated item template or null if not found

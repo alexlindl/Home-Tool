@@ -6,7 +6,8 @@
 import { Router, Request, Response } from 'express';
 import { taskService } from '../services/TaskService';
 import { TaskValidationError } from '../services/TaskService';
-import { TaskFilters } from '../db/taskQueries';
+import { TaskFilters, getBacklogTasks } from '../db/taskQueries';
+import { EnhancedRecurrencePattern, DayOfWeek, RecurrencePatternType } from '../utils/recurrenceEngine';
 
 const router = Router();
 
@@ -18,12 +19,19 @@ const router = Router();
  * {
  *   "title": "Vacuum Living Room",
  *   "description": "Optional description",
- *   "assignedTo": "uuid",
+ *   "assignedTo": "uuid" | null,
  *   "createdBy": "uuid",
- *   "dueDate": "2024-01-15T10:00:00.000Z",
+ *   "dueDate": "2024-01-15T10:00:00.000Z" | null,   // null for backlog tasks
  *   "isRecurring": false,
- *   "recurrenceFrequency": "weekly",   // required if isRecurring=true
- *   "recurrenceInterval": 1,           // required if isRecurring=true
+ *   "recurrencePattern": {                            // optional enhanced recurrence
+ *     "type": "every_n_days" | "every_specific_day" | "every_nth_day" | "every_n_weeks_on_day",
+ *     "interval": 1,
+ *     "dayOfWeek": "monday",                          // optional
+ *     "ordinalWeek": 2,                               // optional (1-5)
+ *     "endDate": "2024-12-31T00:00:00.000Z"           // optional
+ *   },
+ *   "recurrenceFrequency": "weekly",   // legacy, required if isRecurring=true and no recurrencePattern
+ *   "recurrenceInterval": 1,           // legacy, required if isRecurring=true and no recurrencePattern
  *   "recurrenceEndDate": "2024-12-31T00:00:00.000Z"  // optional
  * }
  *
@@ -42,6 +50,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       createdBy,
       dueDate,
       isRecurring,
+      recurrencePattern,
       recurrenceFrequency,
       recurrenceInterval,
       recurrenceEndDate,
@@ -53,11 +62,12 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     // Validate required fields
     // Note: assignedTo may be null (represents "Anyone" assignment), so we check
     // for undefined rather than falsy to allow null through.
+    // Note: dueDate may be null (backlog task), so we also check for undefined.
     const missingFields: string[] = [];
     if (!title) missingFields.push('title');
     if (assignedTo === undefined) missingFields.push('assignedTo');
     if (!createdBy) missingFields.push('createdBy');
-    if (!dueDate) missingFields.push('dueDate');
+    if (dueDate === undefined) missingFields.push('dueDate');
     if (isRecurring === undefined || isRecurring === null) missingFields.push('isRecurring');
 
     if (missingFields.length > 0) {
@@ -68,17 +78,104 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Parse dueDate
-    const parsedDueDate = new Date(dueDate);
-    if (isNaN(parsedDueDate.getTime())) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Invalid dueDate format. Must be a valid ISO date string',
-      });
-      return;
+    // Parse dueDate — null is allowed for backlog tasks (Requirement 5.3)
+    let parsedDueDate: Date | null = null;
+    if (dueDate !== null) {
+      parsedDueDate = new Date(dueDate);
+      if (isNaN(parsedDueDate.getTime())) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid dueDate format. Must be a valid ISO date string or null',
+        });
+        return;
+      }
     }
 
-    // Parse recurrenceEndDate if provided
+    // Parse and validate recurrencePattern if provided (Requirement 2.7)
+    let parsedRecurrencePattern: EnhancedRecurrencePattern | undefined;
+    if (recurrencePattern) {
+      if (typeof recurrencePattern !== 'object') {
+        res.status(400).json({
+          status: 'error',
+          message: 'recurrencePattern must be an object',
+        });
+        return;
+      }
+
+      const validTypes: RecurrencePatternType[] = [
+        'every_n_days',
+        'every_specific_day',
+        'every_nth_day',
+        'every_n_weeks_on_day',
+      ];
+      if (!recurrencePattern.type || !validTypes.includes(recurrencePattern.type)) {
+        res.status(400).json({
+          status: 'error',
+          message: `Invalid recurrence pattern type. Must be one of: ${validTypes.join(', ')}`,
+        });
+        return;
+      }
+
+      if (
+        recurrencePattern.interval === undefined ||
+        recurrencePattern.interval === null ||
+        !Number.isInteger(Number(recurrencePattern.interval)) ||
+        Number(recurrencePattern.interval) <= 0
+      ) {
+        res.status(400).json({
+          status: 'error',
+          message: 'recurrencePattern.interval must be a positive integer',
+        });
+        return;
+      }
+
+      const validDays: DayOfWeek[] = [
+        'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+      ];
+      if (recurrencePattern.dayOfWeek && !validDays.includes(recurrencePattern.dayOfWeek)) {
+        res.status(400).json({
+          status: 'error',
+          message: `Invalid day of week. Must be one of: ${validDays.join(', ')}`,
+        });
+        return;
+      }
+
+      if (recurrencePattern.ordinalWeek !== undefined && recurrencePattern.ordinalWeek !== null) {
+        const ordinal = Number(recurrencePattern.ordinalWeek);
+        if (!Number.isInteger(ordinal) || ordinal < 1 || ordinal > 5) {
+          res.status(400).json({
+            status: 'error',
+            message: 'recurrencePattern.ordinalWeek must be an integer between 1 and 5',
+          });
+          return;
+        }
+      }
+
+      // Parse endDate within recurrencePattern if provided
+      let patternEndDate: Date | undefined;
+      if (recurrencePattern.endDate) {
+        patternEndDate = new Date(recurrencePattern.endDate);
+        if (isNaN(patternEndDate.getTime())) {
+          res.status(400).json({
+            status: 'error',
+            message: 'Invalid recurrencePattern.endDate format. Must be a valid ISO date string',
+          });
+          return;
+        }
+      }
+
+      parsedRecurrencePattern = {
+        type: recurrencePattern.type as RecurrencePatternType,
+        interval: Number(recurrencePattern.interval),
+        dayOfWeek: recurrencePattern.dayOfWeek as DayOfWeek | undefined,
+        ordinalWeek: recurrencePattern.ordinalWeek !== undefined
+          ? Number(recurrencePattern.ordinalWeek)
+          : undefined,
+        endDate: patternEndDate,
+      };
+    }
+
+    // Parse recurrenceEndDate if provided (legacy field)
     let parsedRecurrenceEndDate: Date | undefined;
     if (recurrenceEndDate) {
       parsedRecurrenceEndDate = new Date(recurrenceEndDate);
@@ -98,6 +195,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       createdBy,
       dueDate: parsedDueDate,
       isRecurring: Boolean(isRecurring),
+      recurrencePattern: parsedRecurrencePattern,
       recurrenceFrequency,
       recurrenceInterval: recurrenceInterval !== undefined ? Number(recurrenceInterval) : undefined,
       recurrenceEndDate: parsedRecurrenceEndDate,
@@ -179,13 +277,14 @@ router.get('/history', async (req: Request, res: Response): Promise<void> => {
  *   status      - Filter by status ('pending' | 'completed')
  *   dueDateFrom - Filter tasks with dueDate >= this date (ISO string)
  *   dueDateTo   - Filter tasks with dueDate <= this date (ISO string)
+ *   backlog     - When 'true', return only backlog tasks (null due date)
  *
  * Response: 200 OK
  * { "tasks": [ ... ] }
  */
 router.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { assignedTo, status, dueDateFrom, dueDateTo, listId } = req.query;
+    const { assignedTo, status, dueDateFrom, dueDateTo, listId, backlog } = req.query;
 
     // Validate status if provided
     if (status && !['pending', 'completed'].includes(status as string)) {
@@ -193,6 +292,25 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
         status: 'error',
         message: 'Invalid status. Must be one of: pending, completed',
       });
+      return;
+    }
+
+    // When backlog=true, return only tasks with null due date (Requirement 5.5)
+    if (backlog === 'true') {
+      const backlogFilters: { assignedTo?: string; status?: 'pending' | 'completed'; listId?: string } = {};
+
+      if (assignedTo) {
+        backlogFilters.assignedTo = assignedTo as string;
+      }
+      if (status) {
+        backlogFilters.status = status as 'pending' | 'completed';
+      }
+      if (listId) {
+        backlogFilters.listId = listId as string;
+      }
+
+      const tasks = await getBacklogTasks(backlogFilters);
+      res.status(200).json({ tasks });
       return;
     }
 
@@ -291,6 +409,58 @@ router.get('/templates', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to fetch task templates',
+    });
+  }
+});
+
+/**
+ * GET /api/tasks/templates/search
+ * Search task templates by substring match for autocomplete
+ *
+ * Query parameters:
+ *   q     - Search query (required, min 2 characters)
+ *   limit - Maximum results to return (optional, default 8, max 20)
+ *
+ * Response: 200 OK
+ * { "templates": [ ... ] }
+ *
+ * Response: 400 Bad Request (query too short or missing)
+ * { "status": "error", "message": "Search query must be at least 2 characters" }
+ *
+ * Requirements: 3.1, 3.3, 3.5
+ */
+router.get('/templates/search', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q, limit } = req.query;
+
+    // Validate query parameter
+    const searchQuery = typeof q === 'string' ? q : '';
+    if (searchQuery.length < 2) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Search query must be at least 2 characters',
+      });
+      return;
+    }
+
+    // Parse and validate limit
+    let parsedLimit = 8;
+    if (limit !== undefined) {
+      const num = Number(limit);
+      if (!isNaN(num) && Number.isInteger(num) && num > 0) {
+        parsedLimit = Math.min(num, 20);
+      }
+    }
+
+    const { searchTaskTemplates } = await import('../db/taskQueries');
+    const templates = await searchTaskTemplates(searchQuery, parsedLimit);
+
+    res.status(200).json({ templates });
+  } catch (error) {
+    console.error('Error searching task templates:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to search task templates',
     });
   }
 });
@@ -499,16 +669,21 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     const updates = { ...req.body };
 
     // Parse date fields if provided
-    if (updates.dueDate) {
-      const parsed = new Date(updates.dueDate);
-      if (isNaN(parsed.getTime())) {
-        res.status(400).json({
-          status: 'error',
-          message: 'Invalid dueDate format. Must be a valid ISO date string',
-        });
-        return;
+    if (updates.dueDate !== undefined) {
+      if (updates.dueDate === null) {
+        // Allow setting dueDate to null (convert to backlog task)
+        updates.dueDate = null;
+      } else {
+        const parsed = new Date(updates.dueDate);
+        if (isNaN(parsed.getTime())) {
+          res.status(400).json({
+            status: 'error',
+            message: 'Invalid dueDate format. Must be a valid ISO date string or null',
+          });
+          return;
+        }
+        updates.dueDate = parsed;
       }
-      updates.dueDate = parsed;
     }
 
     if (updates.recurrenceEndDate) {
