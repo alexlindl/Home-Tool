@@ -2,6 +2,17 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.6-alpha] - 2026-06-26
+
+### Removed
+
+- VitePWA service worker completely removed — was causing stale content via HA ingress iframe caching
+- No more offline caching (unnecessary for local network HA addon)
+
+### Fixed
+
+- Nginx: aggressive no-cache headers on all non-asset responses to prevent ingress caching
+
 ## [0.5.5-alpha] - 2026-06-26
 
 ### Fixed
