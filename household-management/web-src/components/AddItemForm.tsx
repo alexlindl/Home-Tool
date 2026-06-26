@@ -30,6 +30,9 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   const [categories, setCategories] = useState<string[]>([]);
   const [templates, setTemplates] = useState<ItemTemplate[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryError, setCategoryError] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -43,6 +46,41 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
       }).catch(() => {});
     }
   }, [open]);
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === '__new__') {
+      setShowNewCategory(true);
+      setCategoryError('');
+    } else {
+      setCategory(value as Category);
+      setShowNewCategory(false);
+      setNewCategoryName('');
+      setCategoryError('');
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) return;
+    setCategoryError('');
+    try {
+      const created = await categoryApi.create(trimmed);
+      setCategories((prev) => [...prev, created.name]);
+      setCategory(created.name as Category);
+      setShowNewCategory(false);
+      setNewCategoryName('');
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number; data?: { error?: string } } };
+      if (error.response?.status === 409) {
+        setCategoryError('Category already exists');
+      } else if (error.response?.status === 400) {
+        setCategoryError(error.response?.data?.error || 'Invalid category name');
+      } else {
+        setCategoryError('Failed to create category');
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,15 +170,40 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
             <label htmlFor="item-category">Category *</label>
             <select
               id="item-category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value as Category)}
+              value={showNewCategory ? '__new__' : category}
+              onChange={handleCategoryChange}
             >
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c.charAt(0).toUpperCase() + c.slice(1)}
                 </option>
               ))}
+              <option value="__new__">+ Add new category...</option>
             </select>
+            {showNewCategory && (
+              <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => { setNewCategoryName(e.target.value); setCategoryError(''); }}
+                  placeholder="New category name"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={handleCreateCategory}
+                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  Create
+                </button>
+              </div>
+            )}
+            {categoryError && (
+              <p style={{ color: 'var(--color-danger, #e74c3c)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+                {categoryError}
+              </p>
+            )}
           </div>
 
           <div className="form-actions">

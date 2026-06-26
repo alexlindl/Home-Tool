@@ -65,7 +65,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [dueTime, setDueTime] = useState('09:00');
   const [timePreset, setTimePreset] = useState<TimePreset>('morning');
   const [isRecurring, setIsRecurring] = useState(false);
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [recurrenceMode, setRecurrenceMode] = useState<'every_n_days' | 'every_n_weeks' | 'every_specific_day' | 'every_nth_day'>('every_n_days');
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
+  const [recurrenceDayOfWeek, setRecurrenceDayOfWeek] = useState('monday');
+  const [recurrenceOrdinal, setRecurrenceOrdinal] = useState(1);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -100,7 +103,18 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       }
       setIsRecurring(editTask.isRecurring);
       if (editTask.recurrencePattern) {
-        setFrequency(editTask.recurrencePattern.frequency);
+        // Try to map legacy frequency to new recurrence mode
+        const freq = editTask.recurrencePattern.frequency;
+        if (freq === 'daily') {
+          setRecurrenceMode('every_n_days');
+          setRecurrenceInterval(editTask.recurrencePattern.interval || 1);
+        } else if (freq === 'weekly') {
+          setRecurrenceMode('every_n_weeks');
+          setRecurrenceInterval(editTask.recurrencePattern.interval || 1);
+        } else {
+          setRecurrenceMode('every_n_days');
+          setRecurrenceInterval(1);
+        }
       }
     } else {
       resetForm();
@@ -127,7 +141,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !dueDate) return;
+    if (!title.trim()) return;
     // "anyone" is a valid selection, so only block if nothing is selected at all
     if (assignedTo === '') return;
 
@@ -135,8 +149,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     try {
       // Resolve assignedTo: "anyone" sentinel → null for API
       const resolvedAssignedTo = assignedTo === 'anyone' ? null : assignedTo;
-      // Combine date and time into full ISO timestamp
-      const fullDueDate = combineDateAndTime(dueDate, dueTime);
+      // Combine date and time into full ISO timestamp, or null if no due date
+      const fullDueDate = dueDate ? combineDateAndTime(dueDate, dueTime) : null;
 
       if (isEditMode && editTask) {
         // Update existing task
@@ -144,14 +158,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           title: title.trim(),
           description: description.trim() || undefined,
           assignedTo: resolvedAssignedTo ?? undefined,
-          dueDate: fullDueDate,
+          dueDate: fullDueDate ?? undefined,
           isRecurring,
         };
         if (isRecurring) {
-          input.recurrencePattern = {
-            frequency,
-            interval: editTask.recurrencePattern?.interval || 1,
-          };
+          input.recurrencePattern = buildRecurrencePattern();
         }
         const updatedTask = await taskApi.updateTask(editTask.id, input);
         onCreated(updatedTask);
@@ -167,8 +178,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           listId: listId || undefined,
         };
         if (isRecurring) {
-          input.recurrenceFrequency = frequency;
-          input.recurrenceInterval = 1;
+          input.recurrencePattern = buildRecurrencePattern();
         }
         if (saveAsTemplate) {
           input.saveAsTemplate = true;
@@ -182,6 +192,21 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       // Error handling could show a toast
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const buildRecurrencePattern = (): Record<string, unknown> => {
+    switch (recurrenceMode) {
+      case 'every_n_days':
+        return { type: 'every_n_days', interval: recurrenceInterval };
+      case 'every_n_weeks':
+        return { type: 'every_n_weeks_on_day', interval: recurrenceInterval, dayOfWeek: recurrenceDayOfWeek };
+      case 'every_specific_day':
+        return { type: 'every_specific_day', interval: 1, dayOfWeek: recurrenceDayOfWeek };
+      case 'every_nth_day':
+        return { type: 'every_nth_day', interval: 1, dayOfWeek: recurrenceDayOfWeek, ordinalWeek: recurrenceOrdinal };
+      default:
+        return { type: 'every_n_days', interval: 1 };
     }
   };
 
@@ -205,7 +230,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setDueTime('09:00');
     setTimePreset('morning');
     setIsRecurring(false);
-    setFrequency('weekly');
+    setRecurrenceMode('every_n_days');
+    setRecurrenceInterval(1);
+    setRecurrenceDayOfWeek('monday');
+    setRecurrenceOrdinal(1);
     setSaveAsTemplate(false);
   };
 
@@ -261,7 +289,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           </div>
 
           <div className="form-group">
-            <label htmlFor="task-assignee">Assign To *</label>
+            <label htmlFor="task-assignee">Assign To</label>
             <select
               id="task-assignee"
               value={assignedTo}
@@ -281,13 +309,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           </div>
 
           <div className="form-group">
-            <label htmlFor="task-due-date">Due Date *</label>
+            <label htmlFor="task-due-date">Due Date</label>
             <input
               id="task-due-date"
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              required
             />
           </div>
 
@@ -328,20 +355,77 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             </label>
           </div>
 
+          {isRecurring && !dueDate && (
+            <p className="form-warning" style={{ color: 'var(--color-warning, #e67e22)', fontSize: '0.8rem', margin: '-8px 0 8px 0' }}>
+              Recurring tasks require a due date
+            </p>
+          )}
+
           {isRecurring && (
             <div className="form-group">
-              <label htmlFor="task-frequency">Frequency</label>
+              <label htmlFor="task-recurrence-mode">Pattern</label>
               <select
-                id="task-frequency"
-                value={frequency}
-                onChange={(e) =>
-                  setFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')
-                }
+                id="task-recurrence-mode"
+                value={recurrenceMode}
+                onChange={(e) => setRecurrenceMode(e.target.value as typeof recurrenceMode)}
               >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="every_n_days">Every N days</option>
+                <option value="every_n_weeks">Every N weeks</option>
+                <option value="every_specific_day">Every specific day</option>
+                <option value="every_nth_day">Every Nth weekday</option>
               </select>
+
+              {(recurrenceMode === 'every_n_days' || recurrenceMode === 'every_n_weeks') && (
+                <div style={{ marginTop: '8px' }}>
+                  <label htmlFor="task-recurrence-interval" style={{ fontSize: '0.85rem' }}>Interval</label>
+                  <input
+                    id="task-recurrence-interval"
+                    type="number"
+                    min={1}
+                    value={recurrenceInterval}
+                    onChange={(e) => setRecurrenceInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={{ width: '80px', marginLeft: '8px' }}
+                  />
+                </div>
+              )}
+
+              {(recurrenceMode === 'every_n_weeks' || recurrenceMode === 'every_specific_day' || recurrenceMode === 'every_nth_day') && (
+                <div style={{ marginTop: '8px' }}>
+                  <label htmlFor="task-recurrence-day" style={{ fontSize: '0.85rem' }}>Day of week</label>
+                  <select
+                    id="task-recurrence-day"
+                    value={recurrenceDayOfWeek}
+                    onChange={(e) => setRecurrenceDayOfWeek(e.target.value)}
+                    style={{ marginLeft: '8px' }}
+                  >
+                    <option value="monday">Monday</option>
+                    <option value="tuesday">Tuesday</option>
+                    <option value="wednesday">Wednesday</option>
+                    <option value="thursday">Thursday</option>
+                    <option value="friday">Friday</option>
+                    <option value="saturday">Saturday</option>
+                    <option value="sunday">Sunday</option>
+                  </select>
+                </div>
+              )}
+
+              {recurrenceMode === 'every_nth_day' && (
+                <div style={{ marginTop: '8px' }}>
+                  <label htmlFor="task-recurrence-ordinal" style={{ fontSize: '0.85rem' }}>Ordinal</label>
+                  <select
+                    id="task-recurrence-ordinal"
+                    value={recurrenceOrdinal}
+                    onChange={(e) => setRecurrenceOrdinal(parseInt(e.target.value))}
+                    style={{ marginLeft: '8px' }}
+                  >
+                    <option value={1}>1st</option>
+                    <option value={2}>2nd</option>
+                    <option value={3}>3rd</option>
+                    <option value={4}>4th</option>
+                    <option value={5}>5th</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -371,7 +455,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={submitting || !title.trim() || assignedTo === '' || !dueDate}
+              disabled={submitting || !title.trim() || assignedTo === ''}
             >
               {submitting ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Task')}
             </button>

@@ -2,6 +2,21 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.7-alpha] - 2026-06-26
+
+### Added
+
+- Task form: due date is now optional (backlog tasks without a due date)
+- Task form: enhanced recurrence patterns — every N days, every N weeks, every specific day, every Nth weekday
+- Shopping add item: inline category creation with "+ Add new category..." option
+- Warning text shown when recurring task has no due date
+
+### Changed
+
+- Task form: "Assign To" and "Due Date" labels no longer show asterisk (both are optional)
+- Settings tabs: wrap to multiple lines instead of scrollbar overflow
+- Settings tab padding reduced for better fit on narrow screens
+
 ## [0.5.6-alpha] - 2026-06-26
 
 ### Removed
