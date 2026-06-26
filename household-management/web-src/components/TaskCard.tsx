@@ -2,7 +2,7 @@
  * TaskCard Component
  * Displays a task with completion checkbox, title, due date, and assignee badge.
  *
- * Requirements: 4.1, 4.2
+ * Requirements: 4.1, 4.2, 2.5, 3.4, 3.5, 3.7
  */
 
 import React from 'react';
@@ -18,20 +18,42 @@ interface TaskCardProps {
   isCurrentUser?: boolean;
 }
 
-function getTaskStatus(dueDate: string): 'overdue' | 'due-today' | 'normal' {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export function getTaskStatus(dueDate: string): 'overdue' | 'due-today' | 'normal' {
+  const now = new Date();
   const due = new Date(dueDate);
-  due.setHours(0, 0, 0, 0);
 
-  if (due < today) return 'overdue';
-  if (due.getTime() === today.getTime()) return 'due-today';
+  if (due < now) return 'overdue';
+
+  // Check if same calendar day
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(now);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  if (due >= todayStart && due <= todayEnd) return 'due-today';
   return 'normal';
 }
 
-function formatDate(dateStr: string): string {
+export function formatTaskDate(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+
+  // Only show time if it's not the default 09:00
+  const isDefaultTime = hours === 9 && minutes === 0;
+  const dateFormatted = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+  if (isDefaultTime) {
+    return dateFormatted;
+  }
+
+  const timeFormatted = date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  return `${dateFormatted} at ${timeFormatted}`;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
@@ -42,7 +64,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   isCurrentUser = false,
 }) => {
   const status = getTaskStatus(task.dueDate);
-  const assigneeName = userNames[task.assignedTo] || task.assignedTo;
+  const isAnyone = task.assignedTo === null;
+  const assigneeName = isAnyone ? 'Anyone' : (userNames[task.assignedTo] || task.assignedTo);
 
   const cardClass = [
     'task-card',
@@ -65,7 +88,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       <div className="task-card-body">
         <span className="task-card-title">{task.title}</span>
         <span className="task-card-meta">
-          <span className="task-card-date">{formatDate(task.dueDate)}</span>
+          <span className="task-card-date">{formatTaskDate(task.dueDate)}</span>
           {task.isRecurring && (
             <span className="task-card-recurring" title="Recurring task">
               🔄
@@ -74,7 +97,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </span>
       </div>
       <div className="task-card-assignee">
-        <UserBadge userName={assigneeName} size="sm" />
+        {isAnyone ? (
+          <span className="task-card-anyone-badge" aria-label="Anyone avatar">👥 Anyone</span>
+        ) : (
+          <UserBadge userName={assigneeName} size="sm" />
+        )}
       </div>
       {onEdit && (
         <button

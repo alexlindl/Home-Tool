@@ -271,7 +271,11 @@ body {
 .user-selector-name {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--color-text);
+  color: #1a1a2e;
+}
+
+[data-theme="dark"] .user-selector-name {
+  color: #f0f0f5;
 }
 
 .user-selector-loading {
@@ -353,6 +357,11 @@ body {
   background: #fff5f5;
 }
 
+.task-card--overdue .task-card-date {
+  color: #dc3545;
+  font-weight: 600;
+}
+
 .task-card--due-today {
   border-left-color: var(--color-due-today);
   background: #fffdf5;
@@ -419,6 +428,16 @@ body {
 
 .task-card-assignee {
   flex-shrink: 0;
+}
+
+.task-card-anyone-badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
 }
 
 .task-card-edit {
@@ -802,6 +821,51 @@ body {
 .chip--frozen { background: var(--color-frozen); }
 .chip--pantry { background: var(--color-pantry); }
 .chip--household { background: var(--color-household); }
+
+/* --- Time Preset Chips --- */
+.time-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.time-preset-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.time-preset-chip:hover {
+  background: var(--color-border);
+}
+
+.time-preset-chip--active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.time-preset-chip--active:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.time-custom-input {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
 
 /* --- Buttons --- */
 .btn {
@@ -1461,4 +1525,33 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 [data-theme="dark"] .app-header {
   background: var(--color-surface);
   border-color: var(--color-border);
+}
+
+/* --- Task Toolbar (Filter/Sort) --- */
+.task-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+.task-filter-btn {
+  padding: 4px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.task-filter-btn--active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+.task-sort-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  background: var(--color-bg);
 }

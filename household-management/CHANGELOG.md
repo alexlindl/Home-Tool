@@ -2,6 +2,23 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.4.0-alpha] - 2026-06-24
+
+### Added
+
+- "Anyone" task assignment: tasks can be assigned to all users, appears in everyone's task list
+- Time picker for tasks with presets (Morning, Noon, Afternoon, Evening, Custom)
+- Overdue task visibility: red time indicator for overdue tasks
+- Task filter: "Due / Overdue" to show only overdue/due tasks
+- Task sorting: by due date, assignee name, or task title
+- "Save as template" opt-in checkbox (replaces auto-save)
+
+### Fixed
+
+- User selector text contrast: names now clearly visible in both light and dark mode
+- Template deduplication: no more duplicate templates when creating tasks with same name as existing templates
+- Tasks now only show as overdue after both date AND time have passed (not just date)
+
 ## [0.3.2-alpha] - 2026-06-24
 
 ### Fixed

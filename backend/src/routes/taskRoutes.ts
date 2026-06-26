@@ -47,12 +47,15 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       recurrenceEndDate,
       fromPrePopulatedTemplate,
       listId,
+      saveAsTemplate,
     } = req.body;
 
     // Validate required fields
+    // Note: assignedTo may be null (represents "Anyone" assignment), so we check
+    // for undefined rather than falsy to allow null through.
     const missingFields: string[] = [];
     if (!title) missingFields.push('title');
-    if (!assignedTo) missingFields.push('assignedTo');
+    if (assignedTo === undefined) missingFields.push('assignedTo');
     if (!createdBy) missingFields.push('createdBy');
     if (!dueDate) missingFields.push('dueDate');
     if (isRecurring === undefined || isRecurring === null) missingFields.push('isRecurring');
@@ -100,6 +103,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       recurrenceEndDate: parsedRecurrenceEndDate,
       fromPrePopulatedTemplate,
       listId,
+      saveAsTemplate: saveAsTemplate === true ? true : undefined,
     });
 
     res.status(201).json({ task });

@@ -15,7 +15,7 @@ export type ReminderType = 'upcoming' | 'overdue';
 export interface ReminderPayload {
   taskId: string;
   title: string;
-  assignedTo: string;
+  assignedTo: string | null;
   dueDate: string;
   type: ReminderType;
   message: string;

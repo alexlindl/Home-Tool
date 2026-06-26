@@ -22,7 +22,7 @@ import {
 export interface CreateTaskInput {
   title: string;
   description?: string;
-  assignedTo: string;
+  assignedTo: string | null; // null = "Anyone" assignment
   createdBy: string;
   dueDate: Date;
   isRecurring: boolean;
@@ -84,7 +84,7 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
     [
       input.title,
       input.description || null,
-      input.assignedTo,
+      input.assignedTo !== undefined ? input.assignedTo : null, // null = "Anyone"
       input.createdBy,
       input.dueDate,
       input.isRecurring,
@@ -212,8 +212,9 @@ export const getTasks = async (filters?: TaskFilters): Promise<Task[]> => {
   let paramCount = 1;
 
   if (filters?.assignedTo) {
-    conditions.push(`assigned_to = $${paramCount++}`);
+    conditions.push(`(assigned_to = $${paramCount} OR assigned_to IS NULL)`);
     values.push(filters.assignedTo);
+    paramCount++;
   }
 
   if (filters?.status) {
@@ -264,7 +265,7 @@ export const getTaskHistory = async (days: number = 30): Promise<TaskHistory[]> 
  * Create a task history entry
  * @param taskId Original task UUID
  * @param title Task title
- * @param assignedTo User ID who was assigned the task
+ * @param assignedTo User ID who was assigned the task, or null for "Anyone" tasks
  * @param completedBy User ID who completed the task
  * @param completedAt Completion timestamp
  * @param wasRecurring Whether the task was recurring
@@ -273,7 +274,7 @@ export const getTaskHistory = async (days: number = 30): Promise<TaskHistory[]> 
 export const createHistoryEntry = async (
   taskId: string,
   title: string,
-  assignedTo: string,
+  assignedTo: string | null,
   completedBy: string,
   completedAt: Date,
   wasRecurring: boolean
@@ -445,4 +446,23 @@ export const updateTaskTemplate = async (
 export const deleteTaskTemplate = async (id: string): Promise<boolean> => {
   const result = await query('DELETE FROM task_templates WHERE id = $1', [id]);
   return result.rowCount !== null && result.rowCount > 0;
+};
+
+/**
+ * Find a task template by title (case-insensitive) across ALL templates
+ * Searches both pre-populated and custom templates
+ * @param title Template title to search for
+ * @returns Promise<TaskTemplate | null> Matching template or null if not found
+ */
+export const findTemplateByTitle = async (title: string): Promise<TaskTemplate | null> => {
+  const result = await query(
+    `SELECT * FROM task_templates WHERE LOWER(title) = LOWER($1) LIMIT 1`,
+    [title]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return taskTemplateFromRow(result.rows[0] as TaskTemplateRow);
 };

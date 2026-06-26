@@ -3,11 +3,39 @@
  * Modal/dialog for creating or editing a task with template selection.
  *
  * Requirements: 4.1, 6.1, 14.1, 14.2, 14.3, 14.4, 14.5
+ * Requirements: 3.1, 3.2, 3.3 (time picker)
  */
 
 import React, { useState, useEffect } from 'react';
 import type { Task, TaskTemplate, CreateTaskInput, UpdateTaskInput, User } from '@/types';
 import { taskApi, userApi } from '@/services/api';
+
+type TimePreset = 'morning' | 'noon' | 'afternoon' | 'evening' | 'custom';
+
+const TIME_PRESETS: { key: TimePreset; label: string; time: string }[] = [
+  { key: 'morning', label: 'Morning', time: '09:00' },
+  { key: 'noon', label: 'Noon', time: '12:00' },
+  { key: 'afternoon', label: 'Afternoon', time: '15:00' },
+  { key: 'evening', label: 'Evening', time: '18:00' },
+  { key: 'custom', label: 'Custom', time: '' },
+];
+
+/**
+ * Combines a date string (YYYY-MM-DD) and a time string (HH:MM) into an ISO timestamp.
+ * Used to produce the full due date+time for the API.
+ */
+export function combineDateAndTime(date: string, time: string): string {
+  return `${date}T${time}:00`;
+}
+
+/**
+ * Extracts the time preset from a time string (HH:MM).
+ * Returns the matching preset key or 'custom' if no preset matches.
+ */
+function getPresetFromTime(time: string): TimePreset {
+  const match = TIME_PRESETS.find((p) => p.key !== 'custom' && p.time === time);
+  return match ? match.key : 'custom';
+}
 
 interface TaskFormProps {
   open: boolean;
@@ -34,8 +62,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('09:00');
+  const [timePreset, setTimePreset] = useState<TimePreset>('morning');
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [templates, setTemplates] = useState<TaskTemplate[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -54,8 +85,19 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     if (editTask) {
       setTitle(editTask.title);
       setDescription(editTask.description || '');
-      setAssignedTo(editTask.assignedTo);
-      setDueDate(editTask.dueDate ? editTask.dueDate.split('T')[0] ?? '' : '');
+      setAssignedTo(editTask.assignedTo ?? 'anyone');
+      if (editTask.dueDate) {
+        const datePart = editTask.dueDate.split('T')[0] ?? '';
+        setDueDate(datePart);
+        // Extract time from ISO string (e.g. "2024-01-15T15:00:00" → "15:00")
+        const timePart = editTask.dueDate.split('T')[1]?.slice(0, 5) || '09:00';
+        setDueTime(timePart);
+        setTimePreset(getPresetFromTime(timePart));
+      } else {
+        setDueDate('');
+        setDueTime('09:00');
+        setTimePreset('morning');
+      }
       setIsRecurring(editTask.isRecurring);
       if (editTask.recurrencePattern) {
         setFrequency(editTask.recurrencePattern.frequency);
@@ -73,19 +115,36 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     }
   };
 
+  const handleTimePresetSelect = (preset: TimePreset) => {
+    setTimePreset(preset);
+    if (preset !== 'custom') {
+      const presetConfig = TIME_PRESETS.find((p) => p.key === preset);
+      if (presetConfig) {
+        setDueTime(presetConfig.time);
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !assignedTo || !dueDate) return;
+    if (!title.trim() || !dueDate) return;
+    // "anyone" is a valid selection, so only block if nothing is selected at all
+    if (assignedTo === '') return;
 
     setSubmitting(true);
     try {
+      // Resolve assignedTo: "anyone" sentinel → null for API
+      const resolvedAssignedTo = assignedTo === 'anyone' ? null : assignedTo;
+      // Combine date and time into full ISO timestamp
+      const fullDueDate = combineDateAndTime(dueDate, dueTime);
+
       if (isEditMode && editTask) {
         // Update existing task
         const input: UpdateTaskInput = {
           title: title.trim(),
           description: description.trim() || undefined,
-          assignedTo,
-          dueDate,
+          assignedTo: resolvedAssignedTo ?? undefined,
+          dueDate: fullDueDate,
           isRecurring,
         };
         if (isRecurring) {
@@ -101,8 +160,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         const input: Record<string, unknown> = {
           title: title.trim(),
           description: description.trim() || undefined,
-          assignedTo,
-          dueDate,
+          assignedTo: resolvedAssignedTo,
+          dueDate: fullDueDate,
           isRecurring,
           createdBy: currentUserId,
           listId: listId || undefined,
@@ -110,6 +169,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         if (isRecurring) {
           input.recurrenceFrequency = frequency;
           input.recurrenceInterval = 1;
+        }
+        if (saveAsTemplate) {
+          input.saveAsTemplate = true;
         }
         const task = await taskApi.createTask(input as unknown as CreateTaskInput & { createdBy: string });
         onCreated(task);
@@ -140,8 +202,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setDescription('');
     setAssignedTo('');
     setDueDate('');
+    setDueTime('09:00');
+    setTimePreset('morning');
     setIsRecurring(false);
     setFrequency('weekly');
+    setSaveAsTemplate(false);
   };
 
   if (!open) return null;
@@ -206,6 +271,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
               <option value="" disabled>
                 Select person...
               </option>
+              <option value="anyone">👥 Anyone</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
@@ -223,6 +289,31 @@ export const TaskForm: React.FC<TaskFormProps> = ({
               onChange={(e) => setDueDate(e.target.value)}
               required
             />
+          </div>
+
+          <div className="form-group">
+            <label>Time</label>
+            <div className="time-preset-chips">
+              {TIME_PRESETS.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  className={`time-preset-chip${timePreset === preset.key ? ' time-preset-chip--active' : ''}`}
+                  onClick={() => handleTimePresetSelect(preset.key)}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            {timePreset === 'custom' && (
+              <input
+                id="task-due-time"
+                type="time"
+                value={dueTime}
+                onChange={(e) => setDueTime(e.target.value)}
+                className="time-custom-input"
+              />
+            )}
           </div>
 
           <div className="form-group form-group--inline">
@@ -254,6 +345,20 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             </div>
           )}
 
+          {!isEditMode && (
+            <div className="form-group form-group--inline">
+              <label htmlFor="task-save-template">
+                <input
+                  id="task-save-template"
+                  type="checkbox"
+                  checked={saveAsTemplate}
+                  onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                />
+                Save as template
+              </label>
+            </div>
+          )}
+
           <div className="form-actions">
             {isEditMode && (
               <button type="button" className="btn btn--secondary settings-btn-danger" onClick={handleDelete}>
@@ -266,7 +371,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={submitting || !title.trim() || !assignedTo || !dueDate}
+              disabled={submitting || !title.trim() || assignedTo === '' || !dueDate}
             >
               {submitting ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Task')}
             </button>

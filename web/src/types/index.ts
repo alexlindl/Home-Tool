@@ -36,7 +36,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  assignedTo: string; // User ID
+  assignedTo: string | null; // User ID or null for "Anyone"
   createdBy: string; // User ID
   dueDate: string; // ISO date string
   isRecurring: boolean;
@@ -122,10 +122,11 @@ export interface ItemTemplate {
 export interface CreateTaskInput {
   title: string;
   description?: string;
-  assignedTo: string; // User ID
+  assignedTo: string | null; // User ID or null for "Anyone"
   dueDate: string; // ISO date string
   isRecurring: boolean;
   recurrencePattern?: RecurrencePattern;
+  saveAsTemplate?: boolean; // opt-in template saving
 }
 
 /**

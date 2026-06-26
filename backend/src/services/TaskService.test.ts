@@ -23,6 +23,7 @@ const mockCreateTaskTemplate = taskQueries.createTaskTemplate as jest.MockedFunc
 const mockGetTaskTemplateById = taskQueries.getTaskTemplateById as jest.MockedFunction<typeof taskQueries.getTaskTemplateById>;
 const mockGetTaskTemplates = taskQueries.getTaskTemplates as jest.MockedFunction<typeof taskQueries.getTaskTemplates>;
 const mockIncrementTemplateUsage = taskQueries.incrementTemplateUsage as jest.MockedFunction<typeof taskQueries.incrementTemplateUsage>;
+const mockFindTemplateByTitle = taskQueries.findTemplateByTitle as jest.MockedFunction<typeof taskQueries.findTemplateByTitle>;
 const mockGetUserById = userQueries.getUserById as jest.MockedFunction<typeof userQueries.getUserById>;
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -112,23 +113,47 @@ describe('TaskService', () => {
 
   describe('createTask', () => {
     describe('successful creation', () => {
-      it('should create a one-off task and save it as a custom template', async () => {
+      it('should create a one-off task without auto-saving as template', async () => {
         mockGetUserById.mockResolvedValue(mockUsers.alex);
         mockCreateTask.mockResolvedValue(mockTask);
-        mockGetTaskTemplates.mockResolvedValue([]); // no existing templates
-        mockCreateTaskTemplate.mockResolvedValue(mockCustomTemplate);
 
         const result = await taskService.createTask(baseTaskInput);
 
         expect(result).toEqual(mockTask);
         expect(mockCreateTask).toHaveBeenCalledTimes(1);
-        // Requirement 2.6 – custom task saved as template
+        // Requirement 5.1 – template is NOT auto-saved
+        expect(mockCreateTaskTemplate).not.toHaveBeenCalled();
+        expect(mockFindTemplateByTitle).not.toHaveBeenCalled();
+      });
+
+      it('should save as template when saveAsTemplate is true and no duplicate exists', async () => {
+        mockGetUserById.mockResolvedValue(mockUsers.alex);
+        mockCreateTask.mockResolvedValue(mockTask);
+        mockFindTemplateByTitle.mockResolvedValue(null); // no existing template
+        mockCreateTaskTemplate.mockResolvedValue(mockCustomTemplate);
+
+        const result = await taskService.createTask({ ...baseTaskInput, saveAsTemplate: true });
+
+        expect(result).toEqual(mockTask);
         expect(mockCreateTaskTemplate).toHaveBeenCalledWith({
           title: 'Vacuum Living Room',
           description: 'Vacuum all carpets',
           isPrePopulated: false,
           createdBy: 'user-1',
         });
+      });
+
+      it('should increment usage count when saveAsTemplate is true and duplicate exists', async () => {
+        mockGetUserById.mockResolvedValue(mockUsers.alex);
+        mockCreateTask.mockResolvedValue(mockTask);
+        mockFindTemplateByTitle.mockResolvedValue(mockTemplate); // existing template found
+        mockIncrementTemplateUsage.mockResolvedValue({ ...mockTemplate, usageCount: 6 });
+
+        const result = await taskService.createTask({ ...baseTaskInput, saveAsTemplate: true });
+
+        expect(result).toEqual(mockTask);
+        expect(mockIncrementTemplateUsage).toHaveBeenCalledWith(mockTemplate.id);
+        expect(mockCreateTaskTemplate).not.toHaveBeenCalled();
       });
 
       it('should create a recurring task with a valid recurrence pattern', async () => {
@@ -147,8 +172,6 @@ describe('TaskService', () => {
 
         mockGetUserById.mockResolvedValue(mockUsers.alex);
         mockCreateTask.mockResolvedValue(recurringTask);
-        mockGetTaskTemplates.mockResolvedValue([]);
-        mockCreateTaskTemplate.mockResolvedValue(mockCustomTemplate);
 
         const result = await taskService.createTask(recurringInput);
 
@@ -164,36 +187,35 @@ describe('TaskService', () => {
         );
       });
 
-      it('should NOT save a duplicate custom template when one already exists', async () => {
-        const existingTemplate: TaskTemplate = {
-          ...mockCustomTemplate,
-          title: 'Vacuum Living Room',
-        };
-
+      it('should NOT save a template when saveAsTemplate is not set', async () => {
         mockGetUserById.mockResolvedValue(mockUsers.alex);
         mockCreateTask.mockResolvedValue(mockTask);
-        mockGetTaskTemplates.mockResolvedValue([existingTemplate]);
 
         const result = await taskService.createTask(baseTaskInput);
 
         expect(result).toEqual(mockTask);
-        // Template already exists – should not create another
+        // Template should not be saved without explicit opt-in
         expect(mockCreateTaskTemplate).not.toHaveBeenCalled();
+        expect(mockFindTemplateByTitle).not.toHaveBeenCalled();
       });
 
-      it('should NOT save a template when task is from a pre-populated template', async () => {
+      it('should NOT save a template when task is from a pre-populated template even with saveAsTemplate', async () => {
         const inputFromTemplate: TaskInput = {
           ...baseTaskInput,
           fromPrePopulatedTemplate: true,
+          saveAsTemplate: true,
         };
 
         mockGetUserById.mockResolvedValue(mockUsers.alex);
         mockCreateTask.mockResolvedValue(mockTask);
+        mockFindTemplateByTitle.mockResolvedValue(null);
+        mockCreateTaskTemplate.mockResolvedValue(mockCustomTemplate);
 
         await taskService.createTask(inputFromTemplate);
 
-        expect(mockCreateTaskTemplate).not.toHaveBeenCalled();
-        expect(mockGetTaskTemplates).not.toHaveBeenCalled();
+        // saveAsTemplate is true, so it will still attempt to save
+        // (fromPrePopulatedTemplate doesn't block saveAsTemplate in the new flow)
+        expect(mockFindTemplateByTitle).toHaveBeenCalled();
       });
 
       it('should trim whitespace from title', async () => {
@@ -219,8 +241,6 @@ describe('TaskService', () => {
           jest.clearAllMocks();
           mockGetUserById.mockResolvedValue(user);
           mockCreateTask.mockResolvedValue({ ...mockTask, assignedTo: user.id });
-          mockGetTaskTemplates.mockResolvedValue([]);
-          mockCreateTaskTemplate.mockResolvedValue(mockCustomTemplate);
 
           const result = await taskService.createTask({
             ...baseTaskInput,
@@ -229,6 +249,21 @@ describe('TaskService', () => {
 
           expect(result.assignedTo).toBe(user.id);
         }
+      });
+
+      it('should allow assigning task to Anyone (null assignedTo)', async () => {
+        mockGetUserById.mockResolvedValue(mockUsers.alex); // only for createdBy check
+        mockCreateTask.mockResolvedValue({ ...mockTask, assignedTo: null });
+
+        const result = await taskService.createTask({
+          ...baseTaskInput,
+          assignedTo: null,
+        });
+
+        expect(result.assignedTo).toBeNull();
+        // getUserById should only be called once for createdBy, not for assignedTo
+        expect(mockGetUserById).toHaveBeenCalledTimes(1);
+        expect(mockGetUserById).toHaveBeenCalledWith('user-1'); // createdBy
       });
     });
 
@@ -255,10 +290,10 @@ describe('TaskService', () => {
         ).rejects.toThrow('Task due date must be a valid date');
       });
 
-      it('should throw TaskValidationError when assignedTo is empty', async () => {
+      it('should throw TaskValidationError when assignedTo is empty string', async () => {
         await expect(
           taskService.createTask({ ...baseTaskInput, assignedTo: '' })
-        ).rejects.toThrow('Task must be assigned to a user');
+        ).rejects.toThrow('Task must be assigned to a user or set to null for Anyone');
       });
 
       it('should throw TaskValidationError when createdBy is empty', async () => {
@@ -363,8 +398,6 @@ describe('TaskService', () => {
       mockIncrementTemplateUsage.mockResolvedValue({ ...mockTemplate, usageCount: 6 });
       mockGetUserById.mockResolvedValue(mockUsers.alex);
       mockCreateTask.mockResolvedValue(mockTask);
-      // Pre-populated template – no new template should be created
-      mockGetTaskTemplates.mockResolvedValue([]);
 
       const result = await taskService.createTaskFromTemplate('template-1', templateOverrides);
 
@@ -438,10 +471,11 @@ describe('TaskService', () => {
 
       await taskService.createTaskFromTemplate('template-1', templateOverrides);
 
+      // No auto-save of templates
       expect(mockCreateTaskTemplate).not.toHaveBeenCalled();
     });
 
-    it('should save a new template when using a custom (non-pre-populated) template', async () => {
+    it('should NOT auto-save template when using a custom (non-pre-populated) template', async () => {
       const customTemplate: TaskTemplate = {
         ...mockTemplate,
         isPrePopulated: false,
@@ -452,17 +486,11 @@ describe('TaskService', () => {
       mockIncrementTemplateUsage.mockResolvedValue({ ...customTemplate, usageCount: 1 });
       mockGetUserById.mockResolvedValue(mockUsers.alex);
       mockCreateTask.mockResolvedValue(mockTask);
-      mockGetTaskTemplates.mockResolvedValue([]); // no existing custom templates
 
-      // When using a custom template, fromPrePopulatedTemplate = false,
-      // so the task creation will attempt to save a new template.
-      // Since the title already exists in the custom templates list (empty here),
-      // it will create one.
-      mockCreateTaskTemplate.mockResolvedValue(mockCustomTemplate);
-
+      // With opt-in template saving, no template is auto-saved
       await taskService.createTaskFromTemplate('template-custom-1', templateOverrides);
 
-      expect(mockCreateTaskTemplate).toHaveBeenCalled();
+      expect(mockCreateTaskTemplate).not.toHaveBeenCalled();
     });
 
     it('should throw an error when template is not found', async () => {

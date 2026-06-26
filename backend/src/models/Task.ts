@@ -19,7 +19,7 @@ export interface Task {
   id: string;              // UUID
   title: string;
   description?: string;
-  assignedTo: string;      // User ID
+  assignedTo: string | null; // User ID or null for "Anyone" assignment
   createdBy: string;       // User ID
   dueDate: Date;
   isRecurring: boolean;
@@ -38,7 +38,7 @@ export interface TaskRow {
   id: string;
   title: string;
   description: string | null;
-  assigned_to: string;
+  assigned_to: string | null; // NULL for "Anyone" assignment
   created_by: string;
   due_date: Date;
   is_recurring: boolean;
@@ -60,7 +60,7 @@ export const taskFromRow = (row: TaskRow): Task => {
     id: row.id,
     title: row.title,
     description: row.description || undefined,
-    assignedTo: row.assigned_to,
+    assignedTo: row.assigned_to, // null means "Anyone"
     createdBy: row.created_by,
     dueDate: row.due_date,
     isRecurring: row.is_recurring,
@@ -131,7 +131,7 @@ export interface TaskHistory {
   id: string;              // UUID
   taskId: string;
   title: string;
-  assignedTo: string;      // User ID
+  assignedTo: string | null; // User ID or null for "Anyone" tasks
   completedBy: string;     // User ID
   completedAt: Date;
   wasRecurring: boolean;
@@ -144,7 +144,7 @@ export interface TaskHistoryRow {
   id: string;
   task_id: string;
   title: string;
-  assigned_to: string;
+  assigned_to: string | null;
   completed_by: string;
   completed_at: Date;
   was_recurring: boolean;

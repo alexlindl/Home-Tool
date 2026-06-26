@@ -21,6 +21,7 @@ import {
   getTaskTemplates as dbGetTaskTemplates,
   TaskTemplateFilters,
   incrementTemplateUsage,
+  findTemplateByTitle,
 } from '../db/taskQueries';
 import { getUserById } from '../db/userQueries';
 
@@ -31,7 +32,7 @@ import { getUserById } from '../db/userQueries';
 export interface TaskInput {
   title: string;
   description?: string;
-  assignedTo: string;   // User ID
+  assignedTo: string | null;   // User ID or null for "Anyone"
   createdBy: string;    // User ID
   dueDate: Date;
   isRecurring: boolean;
@@ -39,10 +40,13 @@ export interface TaskInput {
   recurrenceInterval?: number;
   recurrenceEndDate?: Date;
   /**
+   * When true, the task will be saved as a template.
+   * Template saving is opt-in only (Requirement 5.1, 5.2).
+   */
+  saveAsTemplate?: boolean;
+  /**
    * When true the task was created from a pre-populated template,
    * so it should NOT be saved as a new custom template.
-   * When false/undefined the task is considered custom and will be
-   * saved as a TaskTemplate for future use (Requirement 2.6).
    */
   fromPrePopulatedTemplate?: boolean;
   /** Optional list ID to assign the task to */
@@ -82,8 +86,12 @@ export class TaskService {
       throw new TaskValidationError('Task due date must be a valid date');
     }
 
-    if (!input.assignedTo || input.assignedTo.trim().length === 0) {
-      throw new TaskValidationError('Task must be assigned to a user');
+    if (!input.assignedTo && input.assignedTo !== null) {
+      throw new TaskValidationError('Task must be assigned to a user or set to null for Anyone');
+    }
+
+    if (input.assignedTo !== null && input.assignedTo.trim().length === 0) {
+      throw new TaskValidationError('Task must be assigned to a user or set to null for Anyone');
     }
 
     if (!input.createdBy || input.createdBy.trim().length === 0) {
@@ -139,12 +147,14 @@ export class TaskService {
     // Validate all fields
     this.validateTaskInput(input);
 
-    // Requirement 2.2 – verify the assigned user exists (Alex, Becky, or Sam)
-    const assignedUser = await getUserById(input.assignedTo);
-    if (!assignedUser) {
-      throw new TaskValidationError(
-        `Assigned user with ID ${input.assignedTo} not found`
-      );
+    // Requirement 2.2 – verify the assigned user exists (skip when null = "Anyone")
+    if (input.assignedTo !== null) {
+      const assignedUser = await getUserById(input.assignedTo);
+      if (!assignedUser) {
+        throw new TaskValidationError(
+          `Assigned user with ID ${input.assignedTo} not found`
+        );
+      }
     }
 
     // Verify the creator exists
@@ -169,13 +179,11 @@ export class TaskService {
       listId: input.listId,
     };
 
-    // Requirement 2.5 – persist the task
+    // Persist the task
     const task = await dbCreateTask(dbInput);
 
-    // Requirement 2.6 – save custom tasks as templates for future use.
-    // A task is considered "custom" when it was NOT created from a
-    // pre-populated system template.
-    if (!input.fromPrePopulatedTemplate) {
+    // Requirement 5.1, 5.2 – Only save as template when explicitly requested
+    if (input.saveAsTemplate === true) {
       await this.saveAsTemplate(task, input.createdBy);
     }
 
@@ -431,21 +439,22 @@ export class TaskService {
 
   /**
    * Save a task as a TaskTemplate for future use.
-   * Checks for an existing template with the same title to avoid duplicates.
+   * Checks ALL templates (pre-populated and custom) using case-insensitive title
+   * match via findTemplateByTitle. If a duplicate is found, increments usage count
+   * instead of creating a new template.
+   * (Requirements 5.3, 5.4)
    * @param task The task to save as a template
    * @param createdBy User ID of the template creator
    * @returns Promise<TaskTemplate> The created (or existing) template
    */
   private async saveAsTemplate(task: Task, createdBy: string): Promise<TaskTemplate> {
-    // Check if a custom template with this title already exists to avoid duplicates
-    const existingTemplates = await dbGetTaskTemplates({ isPrePopulated: false });
-    const duplicate = existingTemplates.find(
-      (t) => t.title.toLowerCase() === task.title.toLowerCase()
-    );
+    // Check ALL templates (both pre-populated and custom) for case-insensitive title match
+    const existing = await findTemplateByTitle(task.title);
 
-    if (duplicate) {
-      // Template already exists – no need to create another one
-      return duplicate;
+    if (existing) {
+      // Template already exists – increment usage count instead of creating a new one
+      const updated = await incrementTemplateUsage(existing.id);
+      return updated || existing;
     }
 
     return createTaskTemplate({
