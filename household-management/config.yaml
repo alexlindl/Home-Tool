@@ -1,6 +1,6 @@
 name: "Household Management"
 description: "Manage household tasks and shopping lists directly from Home Assistant"
-version: "0.5.4-alpha"
+version: "0.5.5-alpha"
 slug: "household-management"
 url: "https://github.com/alexlindl/Home-Tool"
 arch:

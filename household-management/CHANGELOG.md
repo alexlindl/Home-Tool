@@ -2,11 +2,23 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.5-alpha] - 2026-06-26
+
+### Fixed
+
+- Force service worker update: bumped version to trigger HA update detection and new SW activation
+- All task UX improvements now properly deployed (backlog tasks, enhanced recurrence, template search, About tab)
+
 ## [0.5.4-alpha] - 2026-06-26
 
 ### Added
 
 - About section in Settings page showing version, database status, platform, tech stack, and GitHub link
+
+### Fixed
+
+- Service worker caching preventing updates: added skipWaiting + clientsClaim to force immediate activation
+- Nginx: index.html and sw.js now served with no-cache headers to prevent stale content after addon updates
 
 ## [0.5.3-alpha] - 2026-06-26
 
