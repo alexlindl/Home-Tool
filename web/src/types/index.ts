@@ -21,13 +21,29 @@ export interface User {
 // ============================================================
 
 /**
- * Recurrence pattern for recurring tasks
+ * Legacy recurrence pattern for recurring tasks
  */
 export interface RecurrencePattern {
   frequency: 'daily' | 'weekly' | 'monthly';
   interval: number; // e.g., every 2 weeks
   endDate?: string; // ISO date string
 }
+
+/**
+ * Enhanced recurrence pattern (new format)
+ */
+export interface EnhancedRecurrencePattern {
+  type: 'every_n_days' | 'every_specific_day' | 'every_nth_day' | 'every_n_weeks_on_day';
+  interval: number;
+  dayOfWeek?: string;
+  ordinalWeek?: number;
+  endDate?: string;
+}
+
+/**
+ * Combined recurrence pattern type (accepts legacy or enhanced)
+ */
+export type AnyRecurrencePattern = RecurrencePattern | EnhancedRecurrencePattern;
 
 /**
  * Task model - represents a chore or activity
@@ -125,7 +141,7 @@ export interface CreateTaskInput {
   assignedTo: string | null; // User ID or null for "Anyone"
   dueDate: string | null; // ISO date string, null for backlog tasks
   isRecurring: boolean;
-  recurrencePattern?: RecurrencePattern;
+  recurrencePattern?: AnyRecurrencePattern;
   saveAsTemplate?: boolean; // opt-in template saving
 }
 
@@ -138,7 +154,7 @@ export interface UpdateTaskInput {
   assignedTo?: string;
   dueDate?: string;
   isRecurring?: boolean;
-  recurrencePattern?: RecurrencePattern;
+  recurrencePattern?: AnyRecurrencePattern;
 }
 
 /**

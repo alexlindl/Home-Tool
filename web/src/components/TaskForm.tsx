@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { Task, TaskTemplate, CreateTaskInput, UpdateTaskInput, User } from '@/types';
+import type { Task, TaskTemplate, CreateTaskInput, UpdateTaskInput, User, AnyRecurrencePattern } from '@/types';
 import { taskApi, userApi } from '@/services/api';
 
 type TimePreset = 'morning' | 'noon' | 'afternoon' | 'evening' | 'custom';
@@ -195,7 +195,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     }
   };
 
-  const buildRecurrencePattern = (): Record<string, unknown> => {
+  const buildRecurrencePattern = (): AnyRecurrencePattern => {
     switch (recurrenceMode) {
       case 'every_n_days':
         return { type: 'every_n_days', interval: recurrenceInterval };

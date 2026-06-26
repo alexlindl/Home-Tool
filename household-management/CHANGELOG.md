@@ -2,6 +2,13 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.8-alpha] - 2026-06-26
+
+### Fixed
+
+- Fix TS2739 build error: added EnhancedRecurrencePattern and AnyRecurrencePattern types to frontend
+- UpdateTaskInput and CreateTaskInput now accept both legacy and enhanced recurrence patterns
+
 ## [0.5.7-alpha] - 2026-06-26
 
 ### Added
