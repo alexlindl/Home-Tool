@@ -2,6 +2,19 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.2-alpha] - 2026-06-26
+
+### Fixed
+
+- Synced household-management/backend-src with backend/src (Docker build uses this copy)
+- ReminderService.ts: nullable dueDate/assignedTo in payload and formatReminderMessage
+- TaskService.ts: backlog task validation, enhanced recurrence support
+- Task model: nullable dueDate, enhanced recurrence fields, serialization helpers
+- taskQueries: new recurrence columns, getBacklogTasks, searchTaskTemplates
+- taskRoutes: backlog filter, recurrencePattern parsing, template search endpoint
+- shoppingRoutes: template search endpoint
+- Added recurrenceEngine.ts utility and migration 006 to Docker build context
+
 ## [0.5.1-alpha] - 2026-06-26
 
 ### Fixed

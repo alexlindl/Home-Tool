@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { shoppingService, ShoppingValidationError } from '../services/ShoppingService';
 import { Category } from '../models/Shopping';
 import { getAllCategories } from '../db/categoryQueries';
+import { searchItemTemplates } from '../db/shoppingQueries';
 
 const router = Router();
 
@@ -142,6 +143,50 @@ router.get('/templates', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * GET /api/shopping/templates/search
+ * Search item templates by name substring (for autocomplete)
+ *
+ * Query parameters:
+ *   q     - Search query (required, min 2 characters)
+ *   limit - Maximum results to return (optional, default 8, max 20)
+ *
+ * Response: 200 OK
+ * { "templates": [ ... ] }
+ *
+ * Response: 400 Bad Request
+ * { "status": "error", "message": "Search query must be at least 2 characters" }
+ *
+ * Requirements: 3.2, 3.3, 3.5
+ */
+router.get('/templates/search', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q, limit } = req.query;
+
+    const searchQuery = (q as string || '').trim();
+
+    if (searchQuery.length < 2) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Search query must be at least 2 characters',
+      });
+      return;
+    }
+
+    const parsedLimit = limit ? Math.min(Math.max(1, parseInt(limit as string, 10) || 8), 20) : 8;
+
+    const templates = await searchItemTemplates(searchQuery, parsedLimit);
+
+    res.status(200).json({ templates });
+  } catch (error) {
+    console.error('Error searching item templates:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to search item templates',
+    });
+  }
+});
+
+/**
  * PUT /api/shopping/templates/:id
  * Update an item template
  *
@@ -175,14 +220,16 @@ router.put('/templates/:id', async (req: Request, res: Response): Promise<void> 
     }
 
     // Validate category if provided
-    const categories = await getAllCategories();
-    const validCategoryNames = categories.map(c => c.name);
-    if (category !== undefined && !validCategoryNames.includes(category)) {
-      res.status(400).json({
-        status: 'error',
-        message: `Category must be one of: ${validCategoryNames.join(', ')}`,
-      });
-      return;
+    if (category !== undefined) {
+      const categories = await getAllCategories();
+      const validCategoryNames = categories.map(c => c.name);
+      if (!validCategoryNames.includes(category)) {
+        res.status(400).json({
+          status: 'error',
+          message: `Invalid category. Must be one of: ${validCategoryNames.join(', ')}`,
+        });
+        return;
+      }
     }
 
     const { updateItemTemplate } = await import('../db/shoppingQueries');

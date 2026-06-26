@@ -6,7 +6,7 @@
  * Validates: Requirements 5.1, 5.2, 5.3
  */
 
-import { Task } from '../models/Task';
+import { Task, isTaskOverdue } from '../models/Task';
 import { getTasks, TaskFilters } from '../db/taskQueries';
 import { getIO } from '../websocket/socketServer';
 
@@ -15,7 +15,7 @@ export type ReminderType = 'upcoming' | 'overdue';
 export interface ReminderPayload {
   taskId: string;
   title: string;
-  assignedTo: string;
+  assignedTo: string | null;
   dueDate: string;
   type: ReminderType;
   message: string;
@@ -63,8 +63,9 @@ export class ReminderService {
   /**
    * Check for overdue tasks (due date in the past, still pending).
    * Queries pending tasks with dueDate before now.
+   * Skips backlog tasks (null due date) — they are never overdue.
    *
-   * Validates: Requirements 5.2
+   * Validates: Requirements 5.2, 5.6
    */
   async checkOverdueTasks(): Promise<void> {
     const now = new Date();
@@ -76,8 +77,9 @@ export class ReminderService {
 
     const tasks = await getTasks(filters);
 
-    // Filter to only truly overdue tasks (dueDate < now)
-    const overdueTasks = tasks.filter((task) => task.dueDate < now);
+    // Filter to only truly overdue tasks using isTaskOverdue
+    // This correctly skips backlog tasks (null dueDate)
+    const overdueTasks = tasks.filter((task) => isTaskOverdue(task, now));
 
     for (const task of overdueTasks) {
       await this.sendReminder(task, 'overdue');
@@ -113,7 +115,7 @@ export class ReminderService {
       taskId: task.id,
       title: task.title,
       assignedTo: task.assignedTo,
-      dueDate: task.dueDate.toISOString(),
+      dueDate: task.dueDate ? task.dueDate.toISOString() : '',
       type,
       message,
       sentAt: new Date().toISOString(),
@@ -134,9 +136,9 @@ export class ReminderService {
    */
   private formatReminderMessage(task: Task, type: ReminderType): string {
     if (type === 'overdue') {
-      return `Task "${task.title}" is overdue! It was due on ${task.dueDate.toLocaleDateString()}.`;
+      return `Task "${task.title}" is overdue! It was due on ${task.dueDate!.toLocaleDateString()}.`;
     }
-    return `Reminder: Task "${task.title}" is due on ${task.dueDate.toLocaleDateString()}.`;
+    return `Reminder: Task "${task.title}" is due on ${task.dueDate ? task.dueDate.toLocaleDateString() : 'no date'}.`;
   }
 
   /**
