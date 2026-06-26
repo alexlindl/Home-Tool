@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.5.3-alpha] - 2026-06-26
+
+### Fixed
+
+- Fix TS18047 in test files compiled by Docker: added non-null assertions for task.dueDate in Task.property.test.ts and ReminderService.test.ts
+
 ## [0.5.2-alpha] - 2026-06-26
 
 ### Fixed

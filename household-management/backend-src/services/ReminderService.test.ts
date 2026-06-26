@@ -164,7 +164,7 @@ describe('ReminderService', () => {
         taskId: task.id,
         title: task.title,
         assignedTo: task.assignedTo,
-        dueDate: task.dueDate.toISOString(),
+        dueDate: task.dueDate!.toISOString(),
         type: 'upcoming',
         message: expect.stringContaining(task.title),
         sentAt: expect.any(String),

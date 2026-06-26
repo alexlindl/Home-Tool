@@ -105,7 +105,7 @@ describe('Property 2: Task Creation Completeness', () => {
       fc.property(arbTask, (task) => {
         expect(task.dueDate).toBeDefined();
         expect(task.dueDate).toBeInstanceOf(Date);
-        expect(isNaN(task.dueDate.getTime())).toBe(false);
+        expect(isNaN(task.dueDate!.getTime())).toBe(false);
       })
     );
   });
