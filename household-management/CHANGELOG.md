@@ -2,6 +2,19 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.6.4-alpha] - 2026-07-01
+
+### Changed
+- Colour schemes now control full theme (background, surface, text, borders, accent) not just primary highlight
+- Dark mode uses pure black (#000000) background; light mode uses pure white (#ffffff)
+- All primary colours adjusted to meet WCAG 2.1 AA contrast ratio (4.5:1 for white button text)
+- Colour schemes have proper dark mode variants with scheme-appropriate tinted surfaces
+
+### Fixed
+- User switcher name text always visible (forced dark text on white button background regardless of theme)
+- Teal scheme secondary text contrast insufficient — darkened to pass 4.5:1
+- All 72 contrast pairings across 6 schemes × 2 modes now verified passing WCAG AA
+
 ## [0.6.3-alpha] - 2026-07-01
 
 ### Added
