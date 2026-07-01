@@ -2,6 +2,19 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.6.3-alpha] - 2026-07-01
+
+### Added
+- Preset colour schemes: 6 accent palettes (Blue, Green, Purple, Orange, Teal, Rose) selectable in Settings > Theme
+- Colour schemes persist via localStorage and apply on app startup
+- Dark mode variants for each colour scheme (lighter tones for readability)
+- Undo button (↩) on each entry in the Task History page to revert completed tasks to pending
+
+### Fixed
+- Theme text visibility issues: replaced hardcoded colours with CSS variables across all components
+- Added missing dark-mode CSS variable overrides for task card backgrounds, warning boxes, active states
+- Added explicit colour properties to action menu buttons for dark mode visibility
+
 ## [0.6.2-alpha] - 2026-07-01
 
 ### Fixed

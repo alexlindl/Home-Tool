@@ -770,12 +770,27 @@ const TemplateManagement: React.FC = () => {
 // ===========================================================================
 
 type ThemeMode = 'light' | 'dark' | 'system';
+type ColorScheme = 'blue' | 'green' | 'purple' | 'orange' | 'teal' | 'rose';
 
 const THEME_STORAGE_KEY = 'household_theme';
+const COLOR_SCHEME_STORAGE_KEY = 'colorScheme';
+
+const COLOR_SCHEMES: { id: ColorScheme; label: string; color: string }[] = [
+  { id: 'blue', label: 'Blue', color: '#4a90d9' },
+  { id: 'green', label: 'Green', color: '#4caf50' },
+  { id: 'purple', label: 'Purple', color: '#7c4dff' },
+  { id: 'orange', label: 'Orange', color: '#ff9800' },
+  { id: 'teal', label: 'Teal', color: '#009688' },
+  { id: 'rose', label: 'Rose', color: '#e91e63' },
+];
 
 const ThemeSelector: React.FC = () => {
   const [theme, setTheme] = useState<ThemeMode>(() => {
     return (localStorage.getItem(THEME_STORAGE_KEY) as ThemeMode) || 'system';
+  });
+
+  const [colorScheme, setColorScheme] = useState<ColorScheme>(() => {
+    return (localStorage.getItem(COLOR_SCHEME_STORAGE_KEY) as ColorScheme) || 'blue';
   });
 
   const applyTheme = useCallback((mode: ThemeMode) => {
@@ -788,10 +803,20 @@ const ThemeSelector: React.FC = () => {
     }
   }, []);
 
+  const applyColorScheme = useCallback((scheme: ColorScheme) => {
+    const root = document.documentElement;
+    root.setAttribute('data-scheme', scheme);
+  }, []);
+
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme, applyTheme]);
+
+  useEffect(() => {
+    applyColorScheme(colorScheme);
+    localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, colorScheme);
+  }, [colorScheme, applyColorScheme]);
 
   // Listen for system theme changes when in system mode
   useEffect(() => {
@@ -804,6 +829,10 @@ const ThemeSelector: React.FC = () => {
 
   const handleChange = (mode: ThemeMode) => {
     setTheme(mode);
+  };
+
+  const handleSchemeChange = (scheme: ColorScheme) => {
+    setColorScheme(scheme);
   };
 
   return (
@@ -826,6 +855,25 @@ const ThemeSelector: React.FC = () => {
           >
             <span className="settings-theme-label">{option.label}</span>
             <span className="settings-theme-desc">{option.description}</span>
+          </button>
+        ))}
+      </div>
+
+      <h3 className="settings-subsection-title" style={{ marginTop: 24 }}>Colour Scheme</h3>
+      <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+        Pick an accent colour for buttons, links, and highlights.
+      </p>
+      <div className="color-scheme-picker">
+        {COLOR_SCHEMES.map((scheme) => (
+          <button
+            key={scheme.id}
+            className={`color-scheme-swatch ${colorScheme === scheme.id ? 'color-scheme-swatch--active' : ''}`}
+            style={{ '--swatch-color': scheme.color } as React.CSSProperties}
+            onClick={() => handleSchemeChange(scheme.id)}
+            aria-label={`${scheme.label} colour scheme`}
+            title={scheme.label}
+          >
+            {colorScheme === scheme.id && <span className="color-scheme-check">✓</span>}
           </button>
         ))}
       </div>
@@ -1261,7 +1309,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.6.2-alpha';
+const APP_VERSION = '0.6.3-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);

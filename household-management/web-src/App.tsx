@@ -5,6 +5,7 @@
  * Requirements: 1.2, 12.4, 16.1, 17.1, 18.1, 19.1, 20.1
  */
 
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth, AuthProvider } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -21,6 +22,14 @@ function AppContent() {
   const { currentUser, isAuthenticated, loading, logout } = useAuth();
   const { isConnected } = useWebSocket({ userName: currentUser?.name });
   const navigate = useNavigate();
+
+  // Apply saved colour scheme on mount
+  useEffect(() => {
+    const savedScheme = localStorage.getItem('colorScheme');
+    if (savedScheme) {
+      document.documentElement.setAttribute('data-scheme', savedScheme);
+    }
+  }, []);
 
   if (loading) {
     return (

@@ -30,6 +30,30 @@
   --color-overdue: #dc3545;
   --color-due-today: #ffc107;
   --color-success: #28a745;
+  --color-warning: #e67e22;
+  --color-danger: #e74c3c;
+
+  /* Muted text (less prominent than secondary) */
+  --color-text-muted: #868e96;
+
+  /* Task card state backgrounds */
+  --color-task-overdue-bg: #fff5f5;
+  --color-task-due-today-bg: #fffdf5;
+  --color-task-mine-bg: #f0f7ff;
+  --color-task-mine-overdue-bg: #fff0f0;
+  --color-task-mine-due-today-bg: #fffbeb;
+
+  /* Warning box */
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #92400e;
+
+  /* Danger zone */
+  --color-danger-bg: #fff5f5;
+  --color-danger-border: #fecaca;
+
+  /* Active nav highlight */
+  --color-active-bg: #f0f7ff;
 
   /* Category colors */
   --color-produce: #4caf50;
@@ -55,9 +79,32 @@
   --color-surface: #16213e;
   --color-text: #e8e8e8;
   --color-text-secondary: #a0a0b0;
+  --color-text-muted: #7a7a8a;
   --color-border: #2a2a4a;
   --color-primary: #5a9fe6;
   --color-primary-hover: #4a8fd6;
+
+  --color-warning: #f0a050;
+  --color-danger: #f06060;
+
+  /* Task card state backgrounds (dark variants) */
+  --color-task-overdue-bg: #2a1a1a;
+  --color-task-due-today-bg: #2a2510;
+  --color-task-mine-bg: #1a2240;
+  --color-task-mine-overdue-bg: #2a1515;
+  --color-task-mine-due-today-bg: #2a2510;
+
+  /* Warning box (dark variant) */
+  --color-warning-bg: #2a2a10;
+  --color-warning-border: #4a4a20;
+  --color-warning-text: #fcd34d;
+
+  /* Danger zone (dark variant) */
+  --color-danger-bg: #2a1a1a;
+  --color-danger-border: #4a2020;
+
+  /* Active nav highlight */
+  --color-active-bg: #1e2a4a;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
@@ -354,17 +401,17 @@ body {
 
 .task-card--overdue {
   border-left-color: var(--color-overdue);
-  background: #fff5f5;
+  background: var(--color-task-overdue-bg);
 }
 
 .task-card--overdue .task-card-date {
-  color: #dc3545;
+  color: var(--color-overdue);
   font-weight: 600;
 }
 
 .task-card--due-today {
   border-left-color: var(--color-due-today);
-  background: #fffdf5;
+  background: var(--color-task-due-today-bg);
 }
 
 .task-card--normal {
@@ -372,15 +419,15 @@ body {
 }
 
 .task-card--mine {
-  background: #f0f7ff;
+  background: var(--color-task-mine-bg);
 }
 
 .task-card--mine.task-card--overdue {
-  background: #fff0f0;
+  background: var(--color-task-mine-overdue-bg);
 }
 
 .task-card--mine.task-card--due-today {
-  background: #fffbeb;
+  background: var(--color-task-mine-due-today-bg);
 }
 
 .task-card-checkbox {
@@ -475,7 +522,7 @@ body {
 }
 
 .task-card-delete:hover {
-  background: #fecaca;
+  background: rgba(220, 53, 69, 0.15);
 }
 
 /* --- Shopping List --- */
@@ -596,6 +643,7 @@ body {
   cursor: pointer;
   font-size: 1rem;
   font-weight: bold;
+  color: var(--color-text-secondary);
   transition: background 0.2s;
 }
 
@@ -624,6 +672,7 @@ body {
   background: none;
   text-align: left;
   font-size: 0.875rem;
+  color: var(--color-text);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -650,6 +699,7 @@ body {
   cursor: pointer;
   font-size: 1rem;
   font-weight: bold;
+  color: var(--color-text-secondary);
   transition: background 0.2s;
 }
 
@@ -678,6 +728,7 @@ body {
   background: none;
   text-align: left;
   font-size: 0.875rem;
+  color: var(--color-text);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -707,6 +758,7 @@ body {
   background: none;
   text-align: left;
   font-size: 0.9375rem;
+  color: var(--color-text);
   cursor: pointer;
   border-radius: 6px;
   transition: background 0.15s;
@@ -728,7 +780,7 @@ body {
   padding: 2px 6px;
   border-radius: 8px;
   background: var(--color-border);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 /* --- Move Snackbar --- */
@@ -1210,7 +1262,7 @@ body {
   }
 
   .bottom-nav-item.active {
-    background: #f0f7ff;
+    background: var(--color-active-bg);
   }
 
   .app-main {
@@ -1380,8 +1432,8 @@ body {
 /* --- Settings Danger Zone --- */
 .settings-danger-zone {
   padding: 16px;
-  background: #fff5f5;
-  border: 1px solid #fecaca;
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
   border-radius: var(--radius);
   margin-top: 12px;
 }
@@ -1422,11 +1474,11 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 .settings-warning {
   margin-top: 16px;
   padding: 10px 14px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
   border-radius: var(--radius);
   font-size: 0.8125rem;
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 /* --- Settings Subsection Title --- */
@@ -1515,7 +1567,7 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 }
 
 .list-selector-item--active {
-  background: #f0f7ff;
+  background: var(--color-active-bg);
   color: var(--color-primary);
   font-weight: 500;
 }
@@ -1644,11 +1696,7 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 
 .settings-theme-btn--active {
   border-color: var(--color-primary);
-  background: #f0f7ff;
-}
-
-[data-theme="dark"] .settings-theme-btn--active {
-  background: #1e2a4a;
+  background: var(--color-active-bg);
 }
 
 .settings-theme-label {
@@ -1664,17 +1712,6 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 }
 
 /* --- Dark mode overrides --- */
-[data-theme="dark"] .settings-danger-zone {
-  background: #2a1a1a;
-  border-color: #4a2020;
-}
-
-[data-theme="dark"] .settings-warning {
-  background: #2a2a10;
-  border-color: #4a4a20;
-  color: #d4d400;
-}
-
 [data-theme="dark"] .modal-content {
   background: var(--color-surface);
   color: var(--color-text);
@@ -1686,13 +1723,9 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 [data-theme="dark"] input[type="file"],
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
-  background: #1a1a2e;
+  background: var(--color-bg);
   color: var(--color-text);
   border-color: var(--color-border);
-}
-
-[data-theme="dark"] .list-selector-item--active {
-  background: #1e2a4a;
 }
 
 [data-theme="dark"] .task-card,
@@ -1724,6 +1757,7 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
   border-radius: 14px;
   border: 1px solid var(--color-border);
   background: transparent;
+  color: var(--color-text-secondary);
   font-size: 0.8rem;
   cursor: pointer;
 }
@@ -1738,6 +1772,7 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
   border: 1px solid var(--color-border);
   font-size: 0.8rem;
   background: var(--color-bg);
+  color: var(--color-text);
 }
 
 /* --- Dashboard Integration Snippets --- */
@@ -1848,7 +1883,7 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 }
 
 [data-theme="dark"] .dashboard-snippet-code {
-  background: #1a1a2e;
+  background: var(--color-bg);
   border-color: var(--color-border);
 }
 
@@ -1950,4 +1985,120 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
     bottom: 24px;
     left: 216px; /* account for side nav */
   }
+}
+
+
+/* --- Colour Scheme Overrides --- */
+[data-scheme="green"] {
+  --color-primary: #4caf50;
+  --color-primary-hover: #43a047;
+}
+[data-scheme="purple"] {
+  --color-primary: #7c4dff;
+  --color-primary-hover: #651fff;
+}
+[data-scheme="orange"] {
+  --color-primary: #ff9800;
+  --color-primary-hover: #f57c00;
+}
+[data-scheme="teal"] {
+  --color-primary: #009688;
+  --color-primary-hover: #00796b;
+}
+[data-scheme="rose"] {
+  --color-primary: #e91e63;
+  --color-primary-hover: #c2185b;
+}
+
+/* Dark mode adjustments for colour schemes */
+[data-theme="dark"][data-scheme="green"] {
+  --color-primary: #66bb6a;
+  --color-primary-hover: #4caf50;
+}
+[data-theme="dark"][data-scheme="purple"] {
+  --color-primary: #b388ff;
+  --color-primary-hover: #7c4dff;
+}
+[data-theme="dark"][data-scheme="orange"] {
+  --color-primary: #ffb74d;
+  --color-primary-hover: #ff9800;
+}
+[data-theme="dark"][data-scheme="teal"] {
+  --color-primary: #4db6ac;
+  --color-primary-hover: #009688;
+}
+[data-theme="dark"][data-scheme="rose"] {
+  --color-primary: #f06292;
+  --color-primary-hover: #e91e63;
+}
+
+/* --- Colour Scheme Picker --- */
+.color-scheme-picker {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.color-scheme-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  background: var(--swatch-color);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, transform 0.15s;
+  position: relative;
+}
+
+.color-scheme-swatch:hover {
+  transform: scale(1.1);
+}
+
+.color-scheme-swatch--active {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--swatch-color);
+}
+
+.color-scheme-check {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* --- History Undo Button --- */
+.history-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.history-undo-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.history-undo-btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.history-undo-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

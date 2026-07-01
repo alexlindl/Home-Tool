@@ -16,6 +16,7 @@ export const TaskHistory: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
+  const [undoingId, setUndoingId] = useState<string | null>(null);
 
   const userNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -46,6 +47,19 @@ export const TaskHistory: React.FC = () => {
   useEffect(() => {
     void fetchHistory();
   }, [fetchHistory]);
+
+  const handleUndo = async (entry: TaskHistoryType) => {
+    setUndoingId(entry.id);
+    try {
+      await taskApi.uncompleteTask(entry.taskId);
+      setHistory((prev) => prev.filter((h) => h.id !== entry.id));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to undo task';
+      setError(message);
+    } finally {
+      setUndoingId(null);
+    }
+  };
 
   function formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString(undefined, {
@@ -86,9 +100,20 @@ export const TaskHistory: React.FC = () => {
           <div key={entry.id} className="history-card">
             <div className="history-card-main">
               <span className="history-card-title">{entry.title}</span>
-              <span className="history-card-date">
-                {formatDate(entry.completedAt)}
-              </span>
+              <div className="history-card-actions">
+                <button
+                  className="history-undo-btn"
+                  onClick={() => handleUndo(entry)}
+                  disabled={undoingId === entry.id}
+                  title="Undo — mark as pending"
+                  aria-label={`Undo completion of ${entry.title}`}
+                >
+                  {undoingId === entry.id ? '...' : '↩'}
+                </button>
+                <span className="history-card-date">
+                  {formatDate(entry.completedAt)}
+                </span>
+              </div>
             </div>
             <div className="history-card-details">
               <span className="history-card-assigned">
