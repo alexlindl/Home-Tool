@@ -311,7 +311,7 @@ router.get('/ha-users', async (_req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const states: { entity_id: string; attributes?: { friendly_name?: string; user_id?: string } }[] = await response.json();
+    const states = await response.json() as { entity_id: string; attributes?: { friendly_name?: string; user_id?: string } }[];
 
     // Filter for person.* entities and extract useful fields
     const haUsers = states
