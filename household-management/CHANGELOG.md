@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.6.1-alpha] - 2026-06-27
+
+### Fixed
+
+- Fixed duplicate vi.mock line in ShoppingList.test.tsx that caused Docker web build to fail
+
 ## [0.6.0-alpha] - 2026-06-27
 
 ### Added

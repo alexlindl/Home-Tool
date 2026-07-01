@@ -41,7 +41,6 @@ vi.mock('@/hooks/useShopping', () => ({
 }));
 
 vi.mock('@/services/api', () => ({
-vi.mock('@/services/api', () => ({
   shoppingListApi: {
     getAll: vi.fn().mockResolvedValue([]),
   },
