@@ -1261,7 +1261,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.6.1-alpha';
+const APP_VERSION = '0.6.2-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1357,7 +1357,7 @@ const DashboardIntegrationTab: React.FC = () => {
   if (error) return <p className="error-state">{error}</p>;
   if (users.length === 0) return <p className="loading-state">No users found. Add users first.</p>;
 
-  const currentUserId = currentUser?.id || users[0].id;
+  const currentUserId = currentUser?.id || users[0]?.id || '';
 
   return <DashboardIntegration users={users} currentUserId={currentUserId} />;
 };

@@ -130,7 +130,7 @@ content: >
   {% endfor %}`;
 }
 
-function generateButtonCardDeepLink(ingressPath: string, userName: string): string {
+function generateButtonCardDeepLink(ingressPath: string, _userName: string): string {
   return `# Button Card: Deep Link to App
 # Opens the app filtered to your tasks
 type: button

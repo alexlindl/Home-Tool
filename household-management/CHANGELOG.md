@@ -2,6 +2,14 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.6.2-alpha] - 2026-07-01
+
+### Fixed
+- Fixed strict TypeScript errors caught by Docker tsc -b build (noUnusedLocals, noUnusedParameters, noUncheckedIndexedAccess)
+- Fixed ingressPath possibly-undefined in DashboardIntegration component
+- Fixed unchecked array index access in AddItemForm and Settings
+- Fixed unused React import, unused key/userName parameters in test and utility files
+
 ## [0.6.1-alpha] - 2026-06-27
 
 ### Fixed

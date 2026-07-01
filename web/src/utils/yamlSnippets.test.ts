@@ -30,7 +30,7 @@ describe('generateYamlSnippets', () => {
   });
 
   it('all snippets are non-empty strings', () => {
-    for (const [key, value] of Object.entries(snippets)) {
+    for (const [_key, value] of Object.entries(snippets)) {
       expect(typeof value).toBe('string');
       expect(value.length).toBeGreaterThan(0);
     }

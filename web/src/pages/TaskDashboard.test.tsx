@@ -186,7 +186,7 @@ describe('TaskDashboard - Deep Link Handling', () => {
       const assignedToParam = mockSearchParams.get('assignedTo');
 
       // Simulating the taskOptions memo logic from TaskDashboard:
-      const filter = 'all'; // set to 'all' by the deep link effect
+      const filter: string = 'all'; // set to 'all' by the deep link effect
       const currentUserId = 'user-1';
       const assignedTo = assignedToParam
         ? assignedToParam

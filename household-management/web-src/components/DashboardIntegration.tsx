@@ -12,7 +12,7 @@
  * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 9.1, 9.2, 9.3, 9.4
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { User } from '@/types';
 import { generateYamlSnippets } from '@/utils/yamlSnippets';
 
@@ -87,13 +87,14 @@ const SNIPPET_METADATA: SnippetInfo[] = [
 
 function DashboardIntegration({ users, currentUserId }: DashboardIntegrationProps): JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState(currentUserId);
-  const [ingressPath, setIngressPath] = useState(() => {
+  const [ingressPath, setIngressPath] = useState<string>(() => {
     // Derive ingress path from current location, or provide a sensible default
     const pathname = window.location.pathname;
     // HA ingress URLs look like: /api/hassio_ingress/<token>/
     const ingressMatch = pathname.match(/^(\/api\/hassio_ingress\/[^/]+\/)/);
-    if (ingressMatch) {
-      return ingressMatch[1];
+    const matchedPath = ingressMatch?.[1];
+    if (matchedPath) {
+      return matchedPath;
     }
     // Fallback: use the pathname up to the last segment
     return '/api/hassio_ingress/your-addon-slug/';

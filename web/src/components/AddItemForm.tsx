@@ -41,7 +41,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
         const names = cats.map((c) => c.name);
         setCategories(names);
         if (names.length > 0 && !names.includes(category)) {
-          setCategory(names[0] as string);
+          setCategory(names[0]!);
         }
       }).catch(() => {});
     }
