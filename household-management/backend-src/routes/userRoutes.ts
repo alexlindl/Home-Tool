@@ -281,6 +281,55 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * GET /api/users/ha-users
+ * Fetch person entities from Home Assistant for the HA linking dropdown.
+ * Returns empty array if supervisor API is unavailable (graceful fallback).
+ */
+router.get('/ha-users', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const token = process.env.SUPERVISOR_TOKEN;
+    if (!token) {
+      // Not running as HA addon — return empty list (frontend will show text input fallback)
+      res.status(200).json({ users: [] });
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch('http://supervisor/core/api/states', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      res.status(200).json({ users: [] });
+      return;
+    }
+
+    const states: { entity_id: string; attributes?: { friendly_name?: string; user_id?: string } }[] = await response.json();
+
+    // Filter for person.* entities and extract useful fields
+    const haUsers = states
+      .filter((s) => s.entity_id.startsWith('person.'))
+      .map((s) => ({
+        entityId: s.entity_id,
+        name: s.attributes?.friendly_name || s.entity_id.replace('person.', ''),
+        userId: s.attributes?.user_id || null,
+      }));
+
+    res.status(200).json({ users: haUsers });
+  } catch (error) {
+    console.error('Error fetching HA users:', error);
+    res.status(200).json({ users: [] }); // Graceful fallback — never error
+  }
+});
+
+/**
  * POST /api/users/select
  * Select current user for the session
  */

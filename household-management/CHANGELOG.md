@@ -2,6 +2,13 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.6.5-alpha] - 2026-07-01
+
+### Added
+- HA user linking now shows a dropdown of person entities fetched from Home Assistant (GET /api/users/ha-users)
+- Falls back to manual text input when not running as an HA add-on or when supervisor API is unavailable
+- Dropdown displays friendly names from person.* entities for easy selection
+
 ## [0.6.4-alpha] - 2026-07-01
 
 ### Changed

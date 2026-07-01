@@ -54,6 +54,7 @@ const UserManagement: React.FC = () => {
   const [haInput, setHaInput] = useState('');
   const [haError, setHaError] = useState('');
   const [haLoading, setHaLoading] = useState(false);
+  const [haUsers, setHaUsers] = useState<{ entityId: string; name: string; userId: string | null }[]>([]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -68,6 +69,11 @@ const UserManagement: React.FC = () => {
   }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // Fetch HA person entities on mount (graceful — empty array if unavailable)
+  useEffect(() => {
+    userApi.getHaUsers().then(setHaUsers).catch(() => {});
+  }, []);
 
   const handleAdd = async () => {
     if (!newName.trim()) return;
@@ -200,19 +206,36 @@ const UserManagement: React.FC = () => {
               {editingHaId === user.id ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div className="settings-inline-edit">
-                    <input
-                      type="text"
-                      value={haInput}
-                      onChange={(e) => setHaInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleHaConfirm(user.id);
-                        if (e.key === 'Escape') handleHaCancel();
-                      }}
-                      placeholder="HA username"
-                      maxLength={128}
-                      autoFocus
-                      disabled={haLoading}
-                    />
+                    {haUsers.length > 0 ? (
+                      <select
+                        value={haInput}
+                        onChange={(e) => setHaInput(e.target.value)}
+                        autoFocus
+                        disabled={haLoading}
+                        style={{ flex: 1 }}
+                      >
+                        <option value="">Not linked</option>
+                        {haUsers.map((haUser) => (
+                          <option key={haUser.entityId} value={haUser.name}>
+                            {haUser.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={haInput}
+                        onChange={(e) => setHaInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleHaConfirm(user.id);
+                          if (e.key === 'Escape') handleHaCancel();
+                        }}
+                        placeholder="HA username"
+                        maxLength={128}
+                        autoFocus
+                        disabled={haLoading}
+                      />
+                    )}
                     <button
                       className="btn btn--primary"
                       onClick={() => handleHaConfirm(user.id)}
@@ -1309,7 +1332,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.6.4-alpha';
+const APP_VERSION = '0.6.5-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);

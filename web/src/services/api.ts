@@ -100,6 +100,12 @@ export const userApi = {
     const response = await apiClient.patch<{ user: User }>(`/users/${id}/ha-link`, { haUsername });
     return response.data.user;
   },
+
+  /** Fetch HA person entities for linking dropdown */
+  async getHaUsers(): Promise<{ entityId: string; name: string; userId: string | null }[]> {
+    const response = await apiClient.get<{ users: { entityId: string; name: string; userId: string | null }[] }>('/users/ha-users');
+    return response.data.users;
+  },
 };
 
 // ---------------------------------------------------------------------------
