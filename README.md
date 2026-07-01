@@ -2,7 +2,7 @@
 
 A Home Assistant add-on for coordinating household chores and shopping lists among household members. Runs self-contained on your HA instance with real-time sync via WebSocket.
 
-**Current version: 0.6.0-alpha**
+**Current version: 0.6.5-alpha**
 
 ## Features
 
