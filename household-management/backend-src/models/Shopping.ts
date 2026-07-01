@@ -4,7 +4,7 @@
  */
 
 /**
- * Valid categories for shopping items.
+ * Category type for shopping items.
  * Widened to string to allow dynamic, DB-backed categories beyond the original defaults.
  * Runtime validation (via getAllCategories()) enforces that the category exists in the DB.
  */

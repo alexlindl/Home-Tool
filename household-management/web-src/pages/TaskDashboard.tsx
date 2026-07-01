@@ -6,13 +6,16 @@
  * Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 14.1, 14.2, 14.3, 14.4, 14.5
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTasks } from '@/hooks/useTasks';
 import { useAuth } from '@/hooks/useAuth';
+import { useUndoSnackbar } from '@/contexts/UndoSnackbarContext';
 import { TaskCard } from '@/components/TaskCard';
 import { TaskForm } from '@/components/TaskForm';
 import { ListSelector } from '@/components/ListSelector';
-import { userApi, taskListApi } from '@/services/api';
+import { MoveToListModal } from '@/components/MoveToListModal';
+import { userApi, taskListApi, taskApi } from '@/services/api';
 import type { Task, User, TaskList } from '@/types';
 
 type FilterMode = 'my' | 'all';
@@ -34,6 +37,10 @@ function getInitialSort(): SortOption {
 
 export const TaskDashboard: React.FC = () => {
   const { currentUser } = useAuth();
+  const { showUndo } = useUndoSnackbar();
+  const [searchParams] = useSearchParams();
+  const deepLinkApplied = useRef(false);
+
   const [filter, setFilter] = useState<FilterMode>('my');
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -42,15 +49,43 @@ export const TaskDashboard: React.FC = () => {
   const [listsLoaded, setListsLoaded] = useState(false);
   const [dueOverdueFilter, setDueOverdueFilter] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>(getInitialSort);
+  const [movingTask, setMovingTask] = useState<Task | null>(null);
+  const [taskLists, setTaskLists] = useState<TaskList[]>([]);
+  const [moveSnackbar, setMoveSnackbar] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
+
+  // Deep link: apply query parameters on mount
+  useEffect(() => {
+    if (deepLinkApplied.current) return;
+    deepLinkApplied.current = true;
+
+    const listIdParam = searchParams.get('listId');
+    const assignedToParam = searchParams.get('assignedTo');
+    const actionParam = searchParams.get('action');
+
+    if (listIdParam) {
+      setSelectedListId(listIdParam);
+    }
+
+    if (assignedToParam) {
+      // When a specific user is requested via deep link, show all tasks filtered to that user
+      // The useTasks hook will pick up assignedTo from taskOptions based on filter mode
+      setFilter('all');
+    }
+
+    if (actionParam === 'create') {
+      setShowForm(true);
+    }
+  }, [searchParams]);
 
   // Load users
   useEffect(() => {
     userApi.getAllUsers().then(setUsers).catch(() => {});
   }, []);
 
-  // Load lists and set default
+  // Load lists and set default (skip if deep link already set a listId)
   useEffect(() => {
     taskListApi.getAll().then((lists: TaskList[]) => {
+      setTaskLists(lists);
       const defaultList = lists.find((l) => l.isDefault);
       if (defaultList && !selectedListId) {
         setSelectedListId(defaultList.id);
@@ -78,14 +113,21 @@ export const TaskDashboard: React.FC = () => {
     return map;
   }, [users]);
 
+  // Deep link: resolve assignedTo from query param
+  const assignedToParam = searchParams.get('assignedTo');
+
   const taskOptions = useMemo(
     () => ({
-      assignedTo: filter === 'my' ? currentUser?.id : undefined,
+      assignedTo: assignedToParam
+        ? assignedToParam
+        : filter === 'my'
+          ? currentUser?.id
+          : undefined,
       status: 'pending' as const,
       userName: currentUser?.name,
       listId: selectedListId === 'all' ? undefined : selectedListId || undefined,
     }),
-    [filter, currentUser?.id, currentUser?.name, selectedListId],
+    [filter, currentUser?.id, currentUser?.name, selectedListId, assignedToParam],
   );
 
   const { tasks, loading, error, completeTask, refreshTasks } = useTasks(taskOptions);
@@ -130,7 +172,18 @@ export const TaskDashboard: React.FC = () => {
 
   const handleComplete = async (taskId: string) => {
     if (!currentUser) return;
+    const task = tasks.find((t) => t.id === taskId);
     await completeTask(taskId, currentUser.id);
+    if (task) {
+      showUndo({
+        itemName: task.title,
+        actionDescription: 'Task completed',
+        onUndo: async () => {
+          await taskApi.uncompleteTask(taskId);
+          refreshTasks();
+        },
+      });
+    }
   };
 
   const handleEdit = (task: Task) => {
@@ -149,7 +202,31 @@ export const TaskDashboard: React.FC = () => {
 
   const handleListRefresh = useCallback(() => {
     refreshTasks();
+    // Re-fetch lists to keep canMove accurate
+    taskListApi.getAll().then(setTaskLists).catch(() => {});
   }, [refreshTasks]);
+
+  const handleMoveToList = (task: Task) => {
+    setMovingTask(task);
+  };
+
+  const handleMoveSelect = async (targetListId: string, targetListName: string) => {
+    if (!movingTask) return;
+    try {
+      await taskApi.moveTask(movingTask.id, targetListId);
+      setMovingTask(null);
+      refreshTasks();
+      setMoveSnackbar({ visible: true, message: `Moved to "${targetListName}"` });
+      setTimeout(() => setMoveSnackbar({ visible: false, message: '' }), 3000);
+    } catch {
+      setMovingTask(null);
+      setMoveSnackbar({ visible: true, message: 'Failed to move task. Please try again.' });
+      setTimeout(() => setMoveSnackbar({ visible: false, message: '' }), 3000);
+    }
+  };
+
+  // Determine if other lists exist for the "Move to list" option
+  const canMoveTask = selectedListId !== 'all' && taskLists.length > 1;
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOption(e.target.value as SortOption);
@@ -225,6 +302,8 @@ export const TaskDashboard: React.FC = () => {
             task={task}
             onComplete={handleComplete}
             onEdit={handleEdit}
+            onMoveToList={handleMoveToList}
+            canMove={canMoveTask}
             userNames={userNames}
             isCurrentUser={task.assignedTo === currentUser?.id}
           />
@@ -258,6 +337,23 @@ export const TaskDashboard: React.FC = () => {
         editTask={editingTask}
         listId={selectedListId === 'all' ? undefined : selectedListId}
       />
+
+      {/* Move to list modal */}
+      <MoveToListModal
+        open={!!movingTask}
+        type="task"
+        currentListId={selectedListId}
+        itemName={movingTask?.title || ''}
+        onSelect={handleMoveSelect}
+        onClose={() => setMovingTask(null)}
+      />
+
+      {/* Move confirmation snackbar */}
+      {moveSnackbar.visible && (
+        <div className="move-snackbar" role="status" aria-live="polite">
+          <span className="move-snackbar-text">{moveSnackbar.message}</span>
+        </div>
+      )}
     </div>
   );
 };

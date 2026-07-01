@@ -2,6 +2,32 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.6.0-alpha] - 2026-06-27
+
+### Added
+
+- Home Assistant Dashboard Integration: REST summary endpoints (/api/summary/tasks, /api/summary/shopping, /api/summary/user/:userId)
+- Widget pages for iframe embedding (/api/widgets/tasks, /api/widgets/shopping) with light/dark theme support
+- Deep link support: URL query parameters for pre-filtering tasks/shopping lists and opening create forms
+- Dashboard Integration settings section with copy-paste YAML snippets for HA sensors, cards, and commands
+- Rename lists: inline rename for task lists and shopping lists with validation (max 100 chars, case-insensitive dedup)
+- Move items between lists: context menu on task/shopping cards with list picker modal
+- Home Assistant user linking: link app profiles to HA usernames in Settings for personalized integrations
+- HA notifications: automatic due/overdue task notifications sent to linked HA users (5-minute interval)
+- Undo complete/purchase: 5-second snackbar with Undo button after completing tasks or purchasing items
+- Uncomplete task endpoint (POST /api/tasks/:id/uncomplete)
+- Unpurchase item endpoint (POST /api/shopping/:id/unpurchase)
+
+### Changed
+
+- Task and shopping item cards now use overflow action menu (⋮) with Edit and Move to list options
+- Settings page adds Dashboard tab and HA Account section per user
+- ReminderService now also triggers HA notification checks
+
+### Database
+
+- Migration 007: Added ha_username column to users table with unique partial index
+
 ## [0.5.8-alpha] - 2026-06-26
 
 ### Fixed

@@ -13,6 +13,11 @@ import * as socketServer from '../websocket/socketServer';
 // Mock dependencies
 jest.mock('../db/taskQueries');
 jest.mock('../websocket/socketServer');
+jest.mock('./NotificationService', () => ({
+  notificationService: {
+    checkAndSendNotifications: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 const mockGetTasks = taskQueries.getTasks as jest.MockedFunction<typeof taskQueries.getTasks>;
 const mockGetIO = socketServer.getIO as jest.MockedFunction<typeof socketServer.getIO>;
@@ -258,7 +263,10 @@ describe('ReminderService', () => {
       // Advance time by one interval
       jest.advanceTimersByTime(1000);
 
-      // Wait for async operations
+      // Wait for async operations (both checkReminders and checkOverdueTasks)
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
       await Promise.resolve();
 
       // getTasks should be called for both checkReminders and checkOverdueTasks

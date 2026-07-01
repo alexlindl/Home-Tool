@@ -185,6 +185,45 @@ export const purchaseItem = async (
   return shoppingItemFromRow(result.rows[0] as ShoppingItemRow);
 };
 
+/**
+ * Mark a shopping item as unpurchased (undo purchase)
+ * @param id Shopping item UUID
+ * @returns Promise<ShoppingItem | null> Updated item or null if not found
+ */
+export const unpurchaseItem = async (id: string): Promise<ShoppingItem | null> => {
+  const result = await query(
+    `UPDATE shopping_items
+     SET is_purchased = FALSE, purchased_by = NULL, purchased_at = NULL, updated_at = NOW()
+     WHERE id = $1 RETURNING *`,
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return shoppingItemFromRow(result.rows[0] as ShoppingItemRow);
+};
+
+/**
+ * Move a shopping item to a different list
+ * @param itemId Shopping item UUID
+ * @param targetListId Target list UUID
+ * @returns Promise<ShoppingItem | null> The updated item or null if not found
+ */
+export const moveShoppingItem = async (itemId: string, targetListId: string): Promise<ShoppingItem | null> => {
+  const result = await query(
+    'UPDATE shopping_items SET list_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+    [targetListId, itemId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return shoppingItemFromRow(result.rows[0] as ShoppingItemRow);
+};
+
 // ---------------------------------------------------------------------------
 // Item Template queries
 // ---------------------------------------------------------------------------

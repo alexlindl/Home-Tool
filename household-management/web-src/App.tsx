@@ -10,6 +10,8 @@ import { useAuth, AuthProvider } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { UserSelector } from '@/components/UserSelector';
 import { UserBadge } from '@/components/UserBadge';
+import { UndoSnackbar } from '@/components/UndoSnackbar';
+import { UndoSnackbarProvider } from '@/contexts/UndoSnackbarContext';
 import { TaskDashboard } from '@/pages/TaskDashboard';
 import { ShoppingList } from '@/pages/ShoppingList';
 import { TaskHistory } from '@/pages/TaskHistory';
@@ -66,6 +68,7 @@ function AppContent() {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<TaskDashboard />} />
+          <Route path="/tasks" element={<TaskDashboard />} />
           <Route path="/shopping" element={<ShoppingList />} />
           <Route path="/history" element={<TaskHistory />} />
           <Route path="/settings" element={<Settings />} />
@@ -86,6 +89,8 @@ function AppContent() {
           <span className="bottom-nav-label">History</span>
         </NavLink>
       </nav>
+
+      <UndoSnackbar />
     </div>
   );
 }
@@ -93,9 +98,11 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <HashRouter>
-        <AppContent />
-      </HashRouter>
+      <UndoSnackbarProvider>
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
+      </UndoSnackbarProvider>
     </AuthProvider>
   );
 }

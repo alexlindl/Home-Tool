@@ -20,6 +20,7 @@ import {
   incrementTemplateUsage,
   updateTaskTemplate,
   deleteTaskTemplate,
+  findTemplateByTitle,
   CreateTaskTemplateInput,
   TaskTemplateFilters,
 } from './taskQueries';
@@ -55,6 +56,9 @@ describe('Task Database Queries', () => {
         recurrence_frequency: null,
         recurrence_interval: null,
         recurrence_end_date: null,
+        recurrence_type: null,
+        recurrence_day_of_week: null,
+        recurrence_ordinal_week: null,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -62,7 +66,10 @@ describe('Task Database Queries', () => {
         updated_at: new Date('2024-01-10T10:00:00Z'),
       };
 
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      // First call returns default list, second call returns the inserted task
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await createTask(input);
 
@@ -78,6 +85,10 @@ describe('Task Database Queries', () => {
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          'default-list-1',
         ]
       );
 
@@ -115,6 +126,9 @@ describe('Task Database Queries', () => {
         recurrence_frequency: 'weekly',
         recurrence_interval: 1,
         recurrence_end_date: null,
+        recurrence_type: null,
+        recurrence_day_of_week: null,
+        recurrence_ordinal_week: null,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -122,7 +136,9 @@ describe('Task Database Queries', () => {
         updated_at: new Date('2024-01-10T10:00:00Z'),
       };
 
-      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
 
       const result = await createTask(input);
 
@@ -138,6 +154,10 @@ describe('Task Database Queries', () => {
           'weekly',
           1,
           null,
+          null,
+          null,
+          null,
+          'default-list-1',
         ]
       );
 
@@ -145,6 +165,71 @@ describe('Task Database Queries', () => {
       expect(result.recurrencePattern).toEqual({
         frequency: 'weekly',
         interval: 1,
+      });
+    });
+
+    it('should create a task with null assignedTo (Anyone assignment)', async () => {
+      const input: CreateTaskInput = {
+        title: 'Clean kitchen',
+        description: 'Anyone can do this',
+        assignedTo: null,
+        createdBy: 'user-1',
+        dueDate: new Date('2024-01-15T10:00:00Z'),
+        isRecurring: false,
+      };
+
+      const mockRow = {
+        id: 'task-3',
+        title: input.title,
+        description: input.description,
+        assigned_to: null,
+        created_by: input.createdBy,
+        due_date: input.dueDate,
+        is_recurring: false,
+        recurrence_frequency: null,
+        recurrence_interval: null,
+        recurrence_end_date: null,
+        recurrence_type: null,
+        recurrence_day_of_week: null,
+        recurrence_ordinal_week: null,
+        status: 'pending',
+        completed_at: null,
+        completed_by: null,
+        created_at: new Date('2024-01-10T10:00:00Z'),
+        updated_at: new Date('2024-01-10T10:00:00Z'),
+      };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 'default-list-1' }], rowCount: 1 } as any)
+        .mockResolvedValueOnce({ rows: [mockRow], rowCount: 1 } as any);
+
+      const result = await createTask(input);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO tasks'),
+        [
+          input.title,
+          input.description,
+          null,
+          input.createdBy,
+          input.dueDate,
+          false,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          'default-list-1',
+        ]
+      );
+
+      expect(result).toMatchObject({
+        id: 'task-3',
+        title: input.title,
+        assignedTo: null,
+        createdBy: input.createdBy,
+        status: 'pending',
       });
     });
   });
@@ -352,7 +437,7 @@ describe('Task Database Queries', () => {
       const result = await getTasks(filters);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE assigned_to = $1'),
+        expect.stringContaining('(assigned_to = $1 OR assigned_to IS NULL)'),
         ['user-1']
       );
       expect(result).toHaveLength(1);
@@ -396,7 +481,7 @@ describe('Task Database Queries', () => {
       await getTasks(filters);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE assigned_to = $1 AND status = $2 AND due_date >= $3'),
+        expect.stringContaining('(assigned_to = $1 OR assigned_to IS NULL) AND status = $2 AND due_date >= $3'),
         ['user-1', 'pending', filters.dueDateFrom]
       );
     });
@@ -890,6 +975,47 @@ describe('Task Template Database Queries', () => {
       const result = await deleteTaskTemplate('non-existent');
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('findTemplateByTitle', () => {
+    it('should find a template by exact title (case-insensitive)', async () => {
+      const mockRow = {
+        id: 'template-1',
+        title: 'Vacuum',
+        description: 'Vacuum all rooms',
+        is_prepopulated: true,
+        created_by: null,
+        usage_count: 5,
+        created_at: new Date('2024-01-10T10:00:00Z'),
+      };
+
+      mockQuery.mockResolvedValue({ rows: [mockRow], rowCount: 1 } as any);
+
+      const result = await findTemplateByTitle('vacuum');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM task_templates WHERE LOWER(title) = LOWER($1) LIMIT 1',
+        ['vacuum']
+      );
+      expect(result).toMatchObject({
+        id: 'template-1',
+        title: 'Vacuum',
+        isPrePopulated: true,
+        usageCount: 5,
+      });
+    });
+
+    it('should return null if no template matches', async () => {
+      mockQuery.mockResolvedValue({ rows: [], rowCount: 0 } as any);
+
+      const result = await findTemplateByTitle('NonExistent Template');
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        'SELECT * FROM task_templates WHERE LOWER(title) = LOWER($1) LIMIT 1',
+        ['NonExistent Template']
+      );
+      expect(result).toBeNull();
     });
   });
 });

@@ -9,6 +9,7 @@
 import { Task, isTaskOverdue } from '../models/Task';
 import { getTasks, TaskFilters } from '../db/taskQueries';
 import { getIO } from '../websocket/socketServer';
+import { notificationService } from './NotificationService';
 
 export type ReminderType = 'upcoming' | 'overdue';
 
@@ -160,6 +161,14 @@ export class ReminderService {
         await this.checkOverdueTasks();
       } catch (error) {
         console.error('Error in reminder scheduler:', error);
+      }
+
+      // HA notifications check — wrapped in separate try/catch so failures
+      // don't break the reminder loop (Validates: Requirements 7.9)
+      try {
+        await notificationService.checkAndSendNotifications();
+      } catch (error) {
+        console.error('Error in HA notification check:', error);
       }
     }, interval);
 

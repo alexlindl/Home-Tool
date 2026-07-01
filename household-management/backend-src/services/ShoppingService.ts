@@ -12,6 +12,7 @@ import {
   updateItem as dbUpdateItem,
   deleteItem as dbDeleteItem,
   purchaseItem as dbPurchaseItem,
+  unpurchaseItem as dbUnpurchaseItem,
   getItemTemplates as dbGetItemTemplates,
   createItemTemplate,
   getItemTemplateById,
@@ -223,6 +224,37 @@ export class ShoppingService {
     const updatedItem = await dbPurchaseItem(id, userId);
     if (!updatedItem) {
       throw new Error(`Failed to purchase item with ID ${id}`);
+    }
+
+    return updatedItem;
+  }
+
+  /**
+   * Mark a shopping item as unpurchased (undo purchase).
+   *
+   * If the item is already unpurchased, returns it unchanged (idempotent).
+   * (Requirements 9.3, 9.4, 9.6)
+   *
+   * @param id Shopping item UUID
+   * @returns Promise<ShoppingItem> The updated shopping item
+   * @throws ShoppingValidationError if item not found
+   */
+  async unpurchaseItem(id: string): Promise<ShoppingItem> {
+    // Verify the item exists
+    const item = await getItemById(id);
+    if (!item) {
+      throw new ShoppingValidationError(`Shopping item with ID ${id} not found`);
+    }
+
+    // Idempotent: if already unpurchased, return unchanged
+    if (!item.isPurchased) {
+      return item;
+    }
+
+    // Delegate to DB
+    const updatedItem = await dbUnpurchaseItem(id);
+    if (!updatedItem) {
+      throw new Error(`Failed to unpurchase item with ID ${id}`);
     }
 
     return updatedItem;

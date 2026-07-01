@@ -11,7 +11,7 @@ import { User, UserRow, userFromRow } from '../models/User';
  * @returns Promise<User[]> Array of all users
  */
 export const getAllUsers = async (): Promise<User[]> => {
-  const result = await query('SELECT id, name, created_at FROM users ORDER BY name');
+  const result = await query('SELECT id, name, ha_username, created_at FROM users ORDER BY name');
   return result.rows.map((row: UserRow) => userFromRow(row));
 };
 
@@ -22,7 +22,7 @@ export const getAllUsers = async (): Promise<User[]> => {
  */
 export const getUserById = async (id: string): Promise<User | null> => {
   const result = await query(
-    'SELECT id, name, created_at FROM users WHERE id = $1',
+    'SELECT id, name, ha_username, created_at FROM users WHERE id = $1',
     [id]
   );
   
@@ -40,7 +40,7 @@ export const getUserById = async (id: string): Promise<User | null> => {
  */
 export const getUserByName = async (name: string): Promise<User | null> => {
   const result = await query(
-    'SELECT id, name, created_at FROM users WHERE name = $1',
+    'SELECT id, name, ha_username, created_at FROM users WHERE name = $1',
     [name]
   );
   
@@ -58,7 +58,7 @@ export const getUserByName = async (name: string): Promise<User | null> => {
  */
 export const createUser = async (name: string): Promise<User> => {
   const result = await query(
-    'INSERT INTO users (name) VALUES ($1) RETURNING id, name, created_at',
+    'INSERT INTO users (name) VALUES ($1) RETURNING id, name, ha_username, created_at',
     [name]
   );
   return userFromRow(result.rows[0] as UserRow);
@@ -72,7 +72,7 @@ export const createUser = async (name: string): Promise<User> => {
  */
 export const updateUser = async (id: string, name: string): Promise<User | null> => {
   const result = await query(
-    'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, name, created_at',
+    'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, name, ha_username, created_at',
     [name, id]
   );
 
@@ -81,6 +81,54 @@ export const updateUser = async (id: string, name: string): Promise<User | null>
   }
 
   return userFromRow(result.rows[0] as UserRow);
+};
+
+/**
+ * Update a user's Home Assistant username
+ * @param id User UUID
+ * @param haUsername HA username to link, or null to unlink
+ * @returns Promise<User | null> Updated user or null if not found
+ */
+export const updateHaUsername = async (id: string, haUsername: string | null): Promise<User | null> => {
+  const result = await query(
+    'UPDATE users SET ha_username = $1 WHERE id = $2 RETURNING id, name, ha_username, created_at',
+    [haUsername, id]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return userFromRow(result.rows[0] as UserRow);
+};
+
+/**
+ * Find a user by their Home Assistant username (case-insensitive)
+ * @param haUsername HA username to search for
+ * @returns Promise<User | null> User with matching HA username or null
+ */
+export const findUserByHaUsername = async (haUsername: string): Promise<User | null> => {
+  const result = await query(
+    'SELECT id, name, ha_username, created_at FROM users WHERE LOWER(ha_username) = LOWER($1)',
+    [haUsername]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return userFromRow(result.rows[0] as UserRow);
+};
+
+/**
+ * Get all users that have a linked Home Assistant account
+ * @returns Promise<User[]> Array of users with non-null ha_username
+ */
+export const getLinkedUsers = async (): Promise<User[]> => {
+  const result = await query(
+    'SELECT id, name, ha_username, created_at FROM users WHERE ha_username IS NOT NULL'
+  );
+  return result.rows.map((row: UserRow) => userFromRow(row));
 };
 
 /**

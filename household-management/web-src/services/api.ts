@@ -94,6 +94,12 @@ export const userApi = {
   async deleteUser(id: string): Promise<void> {
     await apiClient.delete(`/users/${id}`);
   },
+
+  /** Link or unlink a Home Assistant username */
+  async patchHaLink(id: string, haUsername: string): Promise<User> {
+    const response = await apiClient.patch<{ user: User }>(`/users/${id}/ha-link`, { haUsername });
+    return response.data.user;
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -101,6 +107,12 @@ export const userApi = {
 // ---------------------------------------------------------------------------
 
 export const taskApi = {
+  /** Move a task to a different list */
+  async moveTask(id: string, targetListId: string): Promise<Task> {
+    const response = await apiClient.patch<{ task: Task }>(`/tasks/${id}/move`, { targetListId });
+    return response.data.task;
+  },
+
   /** Get tasks with optional filters */
   async getTasks(filters?: TaskFilters): Promise<Task[]> {
     const params: Record<string, string> = {};
@@ -141,6 +153,12 @@ export const taskApi = {
     await apiClient.post(`/tasks/${id}/complete`, { userId });
   },
 
+  /** Revert a completed task back to pending */
+  async uncompleteTask(id: string): Promise<Task> {
+    const response = await apiClient.post<{ task: Task }>(`/tasks/${id}/uncomplete`);
+    return response.data.task;
+  },
+
   /** Get task history (completed tasks) */
   async getHistory(days?: number): Promise<TaskHistory[]> {
     const params: Record<string, string> = {};
@@ -162,6 +180,12 @@ export const taskApi = {
 // ---------------------------------------------------------------------------
 
 export const shoppingApi = {
+  /** Move a shopping item to a different list */
+  async moveItem(id: string, targetListId: string): Promise<ShoppingItem> {
+    const response = await apiClient.patch<{ item: ShoppingItem }>(`/shopping/${id}/move`, { targetListId });
+    return response.data.item;
+  },
+
   /** Get shopping list with optional category and list filter */
   async getList(category?: Category, listId?: string): Promise<ShoppingItem[]> {
     const params: Record<string, string> = {};
@@ -210,6 +234,12 @@ export const shoppingApi = {
     const response = await apiClient.post<{ item: ShoppingItem }>(`/shopping/${id}/purchase`, {
       userId,
     });
+    return response.data.item;
+  },
+
+  /** Revert a purchased item back to unpurchased */
+  async unpurchaseItem(id: string): Promise<ShoppingItem> {
+    const response = await apiClient.post<{ item: ShoppingItem }>(`/shopping/${id}/unpurchase`);
     return response.data.item;
   },
 

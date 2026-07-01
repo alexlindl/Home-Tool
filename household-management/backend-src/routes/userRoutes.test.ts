@@ -20,9 +20,9 @@ describe('User API Routes', () => {
   describe('GET /api/users', () => {
     it('should return all users', async () => {
       const mockUsers = [
-        { id: '1', name: 'Alex' as const, createdAt: new Date('2024-01-01') },
-        { id: '2', name: 'Becky' as const, createdAt: new Date('2024-01-01') },
-        { id: '3', name: 'Sam' as const, createdAt: new Date('2024-01-01') },
+        { id: '1', name: 'Alex' as const, haUsername: null, createdAt: new Date('2024-01-01') },
+        { id: '2', name: 'Becky' as const, haUsername: null, createdAt: new Date('2024-01-01') },
+        { id: '3', name: 'Sam' as const, haUsername: null, createdAt: new Date('2024-01-01') },
       ];
 
       (userQueries.getAllUsers as jest.Mock).mockResolvedValue(mockUsers);
@@ -56,6 +56,7 @@ describe('User API Routes', () => {
     const mockUser = {
       id: 'user-123',
       name: 'Alex' as const,
+      haUsername: null,
       createdAt: new Date('2024-01-01'),
     };
 
@@ -171,6 +172,7 @@ describe('User API Routes', () => {
       const mockUser = {
         id: 'user-123',
         name: 'Alex' as const,
+        haUsername: null,
         createdAt: new Date('2024-01-01'),
       };
 

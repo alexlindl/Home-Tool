@@ -17,6 +17,7 @@ jest.mock('../db/categoryQueries');
 const mockUser = {
   id: 'user-uuid-1',
   name: 'Alex' as const,
+  haUsername: null,
   createdAt: new Date('2024-01-01'),
 };
 

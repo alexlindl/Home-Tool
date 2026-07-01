@@ -1,11 +1,12 @@
 /**
  * TaskCard Component
- * Displays a task with completion checkbox, title, due date, and assignee badge.
+ * Displays a task with completion checkbox, title, due date, assignee badge,
+ * and action menu with edit and move options.
  *
  * Requirements: 4.1, 4.2, 2.5, 3.4, 3.5, 3.7
  */
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Task } from '@/types';
 import { UserBadge } from './UserBadge';
 
@@ -13,6 +14,9 @@ interface TaskCardProps {
   task: Task;
   onComplete: (taskId: string) => void;
   onEdit?: (task: Task) => void;
+  onMoveToList?: (task: Task) => void;
+  /** Whether other lists exist (to show/hide move option) */
+  canMove?: boolean;
   /** Map of user IDs to display names */
   userNames?: Record<string, string>;
   isCurrentUser?: boolean;
@@ -62,9 +66,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   task,
   onComplete,
   onEdit,
+  onMoveToList,
+  canMove = false,
   userNames = {},
   isCurrentUser = false,
 }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const status = getTaskStatus(task.dueDate);
   const isAnyone = task.assignedTo === null;
   const assigneeName = isAnyone ? 'Anyone' : (userNames[task.assignedTo!] || task.assignedTo!);
@@ -76,6 +85,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   ]
     .filter(Boolean)
     .join(' ');
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
+
+  const showMenu = onEdit || (onMoveToList && canMove);
 
   return (
     <div className={cardClass} role="article" aria-label={`Task: ${task.title}`}>
@@ -105,14 +128,48 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           <UserBadge userName={assigneeName} size="sm" />
         )}
       </div>
-      {onEdit && (
-        <button
-          className="task-card-edit"
-          onClick={(e) => { e.stopPropagation(); onEdit(task); }}
-          aria-label="Edit task"
-        >
-          ✏️
-        </button>
+      {showMenu && (
+        <div className="task-card-actions" ref={menuRef}>
+          <button
+            className="task-card-menu-btn"
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+            aria-label="Task actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            ⋮
+          </button>
+          {menuOpen && (
+            <div className="task-card-menu" role="menu">
+              {onEdit && (
+                <button
+                  className="task-card-menu-item"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onEdit(task);
+                  }}
+                >
+                  ✏️ Edit
+                </button>
+              )}
+              {onMoveToList && canMove && (
+                <button
+                  className="task-card-menu-item"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onMoveToList(task);
+                  }}
+                >
+                  📋 Move to list
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

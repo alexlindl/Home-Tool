@@ -86,6 +86,15 @@ export const deleteTaskList = async (id: string): Promise<boolean> => {
   return result.rowCount !== null && result.rowCount > 0;
 };
 
+export const findTaskListByName = async (name: string, excludeId?: string): Promise<TaskList | null> => {
+  const sql = excludeId
+    ? 'SELECT * FROM task_lists WHERE LOWER(name) = LOWER($1) AND id != $2 LIMIT 1'
+    : 'SELECT * FROM task_lists WHERE LOWER(name) = LOWER($1) LIMIT 1';
+  const params = excludeId ? [name, excludeId] : [name];
+  const result = await query(sql, params);
+  return result.rows.length > 0 ? listFromRow(result.rows[0] as ListRow) as TaskList : null;
+};
+
 // ---------------------------------------------------------------------------
 // Shopping Lists
 // ---------------------------------------------------------------------------
@@ -124,6 +133,15 @@ export const updateShoppingList = async (id: string, name: string): Promise<Shop
   );
   if (result.rows.length === 0) return null;
   return listFromRow(result.rows[0] as ListRow) as ShoppingList;
+};
+
+export const findShoppingListByName = async (name: string, excludeId?: string): Promise<ShoppingList | null> => {
+  const sql = excludeId
+    ? 'SELECT * FROM shopping_lists WHERE LOWER(name) = LOWER($1) AND id != $2 LIMIT 1'
+    : 'SELECT * FROM shopping_lists WHERE LOWER(name) = LOWER($1) LIMIT 1';
+  const params = excludeId ? [name, excludeId] : [name];
+  const result = await query(sql, params);
+  return result.rows.length > 0 ? listFromRow(result.rows[0] as ListRow) as ShoppingList : null;
 };
 
 export const deleteShoppingList = async (id: string): Promise<boolean> => {

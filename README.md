@@ -1,133 +1,140 @@
 # Household Management App
 
-A cross-platform household management application for coordinating chores and shopping lists among household members.
+A Home Assistant add-on for coordinating household chores and shopping lists among household members. Runs self-contained on your HA instance with real-time sync via WebSocket.
+
+**Current version: 0.6.0-alpha**
+
+## Features
+
+- **Task management** — create, assign, complete, and recur tasks across multiple lists
+- **Shopping lists** — categorized items with purchase tracking across multiple lists
+- **Multiple lists** — separate task lists and shopping lists with rename and move-between support
+- **Enhanced recurrence** — every N days, every N weeks, specific weekdays, Nth weekday of month
+- **Backlog tasks** — tasks without due dates for unscheduled work
+- **Home Assistant Dashboard Integration** — REST summary endpoints and widget pages for iframe embedding
+- **Deep links** — URL query parameters for pre-filtering and opening create forms
+- **HA user linking** — link app profiles to HA usernames for personalized integrations
+- **HA notifications** — automatic due/overdue task notifications to linked HA users
+- **Undo actions** — 5-second snackbar with Undo after completing tasks or purchasing items
+- **Real-time sync** — WebSocket (Socket.io) for instant updates across all connected clients
+- **Light/dark mode** — theme support including widget pages
+- **Backup & restore** — full database export/import via admin API
+- **Template system** — pre-populated task and item templates with autocomplete search
 
 ## Project Structure
 
 ```
-household-management-app/
-├── backend/          # Node.js + Express backend with PostgreSQL
-├── mobile/           # Flutter mobile app (Android & iOS)
-├── web/              # React web application
-└── .kiro/            # Kiro spec files
+Home-Tool/
+├── backend/                    # Development backend (Node.js + Express + TypeScript)
+├── web/                        # Development frontend (React + TypeScript + Vite)
+├── household-management/       # HA add-on Docker build context
+│   ├── backend-src/            # Backend source (synced copy for Docker build)
+│   ├── web-src/                # Frontend source (synced copy for Docker build)
+│   ├── config.yaml             # HA add-on configuration
+│   ├── Dockerfile              # Multi-stage Docker build
+│   ├── CHANGELOG.md            # Version history
+│   └── ...
+└── .kiro/                      # Spec files and steering rules
 ```
 
-## Development Environment
+## Development Setup
 
 ### Prerequisites
 
-- Windows 11 with WSL2
-- Ubuntu 22.04 LTS (in WSL)
-- Node.js v18 LTS
-- PostgreSQL 14
-- Flutter SDK 3.16.0
-
-### Installation Status
-
-✅ WSL2 with Ubuntu 22.04 LTS - Installed
-✅ Node.js v18.20.8 - Installed
-✅ npm v10.8.2 - Installed
-✅ PostgreSQL 14.20 - Installed and configured
-✅ Flutter 3.16.0 - Installed
-✅ Git 2.34.1 - Installed
+- Node.js v18+
+- PostgreSQL 14+
+- npm
 
 ### Database Configuration
 
 - **Database Name**: household_app
 - **Database User**: household
 - **Database Password**: household123 (change in production!)
-- **Connection String**: postgresql://household:household123@localhost:5432/household_app
+- **Connection String**: `postgresql://household:household123@localhost:5432/household_app`
 
 ### Getting Started
 
-#### 1. Backend Setup
+#### 1. Backend
 
 ```bash
 cd backend
 npm install
 cp .env.example .env
-# Edit .env with your configuration
 npm run dev
 ```
 
-#### 2. Mobile App Setup
-
-```bash
-cd mobile
-flutter pub get
-flutter run
-```
-
-#### 3. Web App Setup
+#### 2. Web Frontend
 
 ```bash
 cd web
 npm install
-cp .env.example .env
-# Edit .env with your configuration
 npm run dev
 ```
 
-### Flutter Path Configuration
+### PostgreSQL Service (WSL)
 
-Flutter is installed at `~/flutter/bin`. To use Flutter commands, either:
-
-1. **Use the full path**:
-   ```bash
-   ~/flutter/bin/flutter doctor
-   ```
-
-2. **Or reload your shell** (the PATH was added to ~/.bashrc):
-   ```bash
-   source ~/.bashrc
-   flutter doctor
-   ```
-
-### PostgreSQL Service
-
-To start PostgreSQL in WSL:
 ```bash
 sudo service postgresql start
-```
-
-To check PostgreSQL status:
-```bash
 sudo service postgresql status
 ```
 
-### Next Steps
+## API Endpoints
 
-1. ✅ Development environment setup complete
-2. ⏭️ Initialize backend project structure (Task 2)
-3. ⏭️ Implement User service and API endpoints (Task 3)
-4. ⏭️ Continue with remaining tasks from the implementation plan
+### Core Resources
+- `GET/POST /api/users` — user management
+- `GET/POST/PUT/DELETE /api/tasks` — task CRUD
+- `GET/POST/PUT/DELETE /api/shopping` — shopping item CRUD
+- `GET/POST/PUT/DELETE /api/task-lists` — task list management
+- `GET/POST/PUT/DELETE /api/shopping-lists` — shopping list management
+- `GET/POST /api/categories` — category management
+
+### Task Actions
+- `POST /api/tasks/:id/complete` — complete a task
+- `POST /api/tasks/:id/uncomplete` — undo task completion
+- `PUT /api/tasks/:id/move` — move task to another list
+
+### Shopping Actions
+- `POST /api/shopping/:id/purchase` — mark item purchased
+- `POST /api/shopping/:id/unpurchase` — undo purchase
+- `PUT /api/shopping/:id/move` — move item to another list
+
+### Dashboard Integration (Home Assistant)
+- `GET /api/summary/tasks` — task summary for HA sensors
+- `GET /api/summary/shopping` — shopping summary for HA sensors
+- `GET /api/summary/user/:userId` — per-user task summary
+- `GET /api/widgets/tasks` — embeddable task widget page
+- `GET /api/widgets/shopping` — embeddable shopping widget page
+
+### Admin
+- `POST /api/admin/reset` — selective data reset
+- `POST /api/admin/factory-reset` — full factory reset
+- `GET /api/admin/backup` — export database as JSON
+- `POST /api/admin/restore` — import backup JSON
+- `GET/PUT /api/admin/config` — configuration management
+
+### Health
+- `GET /health` — app health check
+- `GET /health/db` — database connectivity check
 
 ## Technology Stack
 
 **Backend:**
-- Node.js with Express
+- Node.js with Express 5
 - PostgreSQL database
 - WebSocket (Socket.io) for real-time sync
 - TypeScript
 
-**Mobile:**
-- Flutter (Android & iOS)
-- SQLite for local storage
-- Provider for state management
+**Frontend:**
+- React 18 with TypeScript
+- Vite build tool
+- Axios for API calls
+- Socket.io client for real-time updates
 
-**Web:**
-- React with TypeScript
-- IndexedDB for local storage
-- Redux/Context for state management
+**Deployment:**
+- Docker multi-stage build
+- Nginx reverse proxy with HA ingress support
+- Home Assistant add-on (amd64, aarch64)
 
-## Requirements
+## Changelog
 
-See `.kiro/specs/household-management-app/requirements.md` for detailed requirements.
-
-## Design
-
-See `.kiro/specs/household-management-app/design.md` for architecture and design details.
-
-## Implementation Plan
-
-See `.kiro/specs/household-management-app/tasks.md` for the complete task breakdown.
+See `household-management/CHANGELOG.md` for detailed version history.

@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from 'express';
 import { userService } from '../services/UserService';
-import { createUser, getUserByName, updateUser, deleteUser, getUserById } from '../db/userQueries';
+import { createUser, getUserByName, updateUser, deleteUser, getUserById, updateHaUsername, findUserByHaUsername } from '../db/userQueries';
 import { query } from '../db/connection';
 
 const router = Router();
@@ -134,6 +134,73 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to update user',
+    });
+  }
+});
+
+/**
+ * PATCH /api/users/:id/ha-link
+ * Link or unlink a Home Assistant username for a user
+ * 
+ * Request body:
+ * { "haUsername": "ha_user_name" }  — link
+ * { "haUsername": "" }              — unlink
+ * 
+ * Response: 200 OK
+ * { "user": { "id": "uuid", "name": "Alex", "haUsername": "ha_user", "createdAt": "..." } }
+ */
+router.patch('/:id/ha-link', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const { haUsername } = req.body;
+
+    // Validate user exists
+    const existingUser = await getUserById(id);
+    if (!existingUser) {
+      res.status(404).json({
+        status: 'error',
+        message: `User with ID ${id} not found`,
+      });
+      return;
+    }
+
+    // Determine the value to set
+    let usernameToSet: string | null = null;
+
+    if (haUsername !== undefined && haUsername !== null && typeof haUsername === 'string' && haUsername.trim().length > 0) {
+      // haUsername provided and non-empty — link
+      const trimmed = haUsername.trim();
+
+      // Validate length
+      if (trimmed.length > 128) {
+        res.status(400).json({
+          status: 'error',
+          message: 'HA username must not exceed 128 characters',
+        });
+        return;
+      }
+
+      // Check uniqueness (case-insensitive)
+      const existingLinked = await findUserByHaUsername(trimmed);
+      if (existingLinked && existingLinked.id !== id) {
+        res.status(409).json({
+          status: 'error',
+          message: 'This HA username is already linked to another user',
+        });
+        return;
+      }
+
+      usernameToSet = trimmed;
+    }
+    // else: haUsername is empty/whitespace/undefined/null → unlink (set to null)
+
+    const updatedUser = await updateHaUsername(id, usernameToSet);
+    res.status(200).json({ user: updatedUser });
+  } catch (error) {
+    console.error('Error updating HA username:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update HA username',
     });
   }
 });

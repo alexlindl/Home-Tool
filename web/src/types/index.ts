@@ -13,6 +13,7 @@
 export interface User {
   id: string;
   name: 'Alex' | 'Becky' | 'Sam';
+  haUsername: string | null;
   createdAt: string; // ISO date string from API
 }
 

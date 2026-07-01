@@ -29,9 +29,9 @@ const mockGetUserById = userQueries.getUserById as jest.MockedFunction<typeof us
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 const mockUsers = {
-  alex: { id: 'user-1', name: 'Alex' as const, createdAt: new Date('2024-01-01') },
-  becky: { id: 'user-2', name: 'Becky' as const, createdAt: new Date('2024-01-01') },
-  sam: { id: 'user-3', name: 'Sam' as const, createdAt: new Date('2024-01-01') },
+  alex: { id: 'user-1', name: 'Alex' as const, haUsername: null, createdAt: new Date('2024-01-01') },
+  becky: { id: 'user-2', name: 'Becky' as const, haUsername: null, createdAt: new Date('2024-01-01') },
+  sam: { id: 'user-3', name: 'Sam' as const, haUsername: null, createdAt: new Date('2024-01-01') },
 };
 
 const baseTaskInput: TaskInput = {

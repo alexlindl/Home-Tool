@@ -51,8 +51,8 @@ export interface UpdateTaskInput {
   recurrenceDayOfWeek?: string | null;     // Day for day-based patterns
   recurrenceOrdinalWeek?: number | null;   // 1-5 for Nth occurrence
   status?: 'pending' | 'completed';
-  completedAt?: Date;
-  completedBy?: string;
+  completedAt?: Date | null;
+  completedBy?: string | null;
 }
 
 /**
@@ -525,6 +525,40 @@ export const searchTaskTemplates = async (
   );
 
   return result.rows.map((row: TaskTemplateRow) => taskTemplateFromRow(row));
+};
+
+/**
+ * Move a task to a different list
+ * @param taskId Task UUID
+ * @param targetListId Target list UUID
+ * @returns Promise<Task | null> The updated task or null if not found
+ */
+export const moveTask = async (taskId: string, targetListId: string): Promise<Task | null> => {
+  const result = await query(
+    'UPDATE tasks SET list_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+    [targetListId, taskId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  return taskFromRow(result.rows[0] as TaskRow);
+};
+
+/**
+ * Delete task history entries associated with a given task ID.
+ * Removes all history entries for the specified task (most recent completion record).
+ * Used when uncompleting a task to revert the completion action.
+ * @param taskId Task UUID whose history entries should be deleted
+ * @returns Promise<boolean> True if any entries were deleted, false otherwise
+ */
+export const deleteHistoryEntryByTaskId = async (taskId: string): Promise<boolean> => {
+  const result = await query(
+    'DELETE FROM task_history WHERE task_id = $1',
+    [taskId]
+  );
+  return result.rowCount !== null && result.rowCount > 0;
 };
 
 /**

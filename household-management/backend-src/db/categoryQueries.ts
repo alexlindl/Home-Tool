@@ -53,10 +53,10 @@ export const getCategoryById = async (id: string): Promise<CategoryRecord | null
 };
 
 /**
- * Get a category by name
+ * Get a category by name (case-insensitive)
  */
 export const getCategoryByName = async (name: string): Promise<CategoryRecord | null> => {
-  const result = await query('SELECT * FROM categories WHERE name = $1', [name]);
+  const result = await query('SELECT * FROM categories WHERE LOWER(name) = LOWER($1)', [name]);
   if (result.rows.length === 0) return null;
   return categoryFromRow(result.rows[0] as CategoryRow);
 };

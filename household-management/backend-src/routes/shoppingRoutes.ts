@@ -7,7 +7,8 @@ import { Router, Request, Response } from 'express';
 import { shoppingService, ShoppingValidationError } from '../services/ShoppingService';
 import { Category } from '../models/Shopping';
 import { getAllCategories } from '../db/categoryQueries';
-import { searchItemTemplates } from '../db/shoppingQueries';
+import { searchItemTemplates, getItemById, moveShoppingItem } from '../db/shoppingQueries';
+import { getShoppingListById } from '../db/listQueries';
 
 const router = Router();
 
@@ -511,6 +512,112 @@ router.post('/:id/purchase', async (req: Request, res: Response): Promise<void> 
     res.status(500).json({
       status: 'error',
       message: 'Failed to purchase shopping item',
+    });
+  }
+});
+
+/**
+ * POST /api/shopping/:id/unpurchase
+ * Revert a shopping item to unpurchased state
+ *
+ * Response: 200 OK
+ * { "item": { ... } }
+ *
+ * Response: 404 Not Found
+ * { "status": "error", "message": "..." }
+ *
+ * Requirements: 9.3
+ */
+router.post('/:id/unpurchase', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+
+    const item = await shoppingService.unpurchaseItem(id);
+    res.status(200).json({ item });
+  } catch (error) {
+    console.error('Error unpurchasing shopping item:', error);
+
+    if (error instanceof ShoppingValidationError) {
+      if (error.message.includes('not found')) {
+        res.status(404).json({
+          status: 'error',
+          message: error.message,
+        });
+        return;
+      }
+
+      res.status(400).json({
+        status: 'error',
+        message: error.message,
+      });
+      return;
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to unpurchase shopping item',
+    });
+  }
+});
+
+/**
+ * PATCH /api/shopping/:id/move
+ * Move a shopping item to a different list
+ *
+ * Request body:
+ * { "targetListId": "uuid" }
+ *
+ * Response: 200 OK
+ * { "item": { ... } }
+ *
+ * Response: 400 Bad Request (missing targetListId)
+ * { "status": "error", "message": "targetListId is required" }
+ *
+ * Response: 404 Not Found (target list or item not found)
+ * { "status": "error", "message": "..." }
+ */
+router.patch('/:id/move', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { targetListId } = req.body;
+
+    // Validate targetListId is present
+    if (!targetListId) {
+      res.status(400).json({
+        status: 'error',
+        message: 'targetListId is required',
+      });
+      return;
+    }
+
+    // Validate target list exists
+    const targetList = await getShoppingListById(targetListId);
+    if (!targetList) {
+      res.status(404).json({
+        status: 'error',
+        message: `Target list with ID ${targetListId} not found`,
+      });
+      return;
+    }
+
+    // Validate shopping item exists
+    const existingItem = await getItemById(id as string);
+    if (!existingItem) {
+      res.status(404).json({
+        status: 'error',
+        message: `Shopping item with ID ${id} not found`,
+      });
+      return;
+    }
+
+    // Move the item
+    const updatedItem = await moveShoppingItem(id as string, targetListId);
+    res.status(200).json({ item: updatedItem });
+  } catch (error) {
+    console.error('Error moving shopping item:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to move shopping item',
     });
   }
 });

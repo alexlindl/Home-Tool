@@ -15,6 +15,7 @@ import {
   updateTask as dbUpdateTask,
   deleteTask as dbDeleteTask,
   createHistoryEntry,
+  deleteHistoryEntryByTaskId,
   getTaskHistory as dbGetTaskHistory,
   createTaskTemplate,
   getTaskTemplateById,
@@ -445,6 +446,45 @@ export class TaskService {
 
       await dbCreateTask(nextDbInput);
     }
+  }
+
+  /**
+   * Uncomplete a task, reverting it to pending state.
+   *
+   * Steps:
+   *  1. Fetch the task and verify it exists.
+   *  2. If already pending, return the task unchanged (idempotent).
+   *  3. Revert status to 'pending', clear completedAt and completedBy.
+   *  4. Delete the associated task_history entry for this task.
+   *
+   * (Requirements 9.1, 9.2, 9.4, 9.5)
+   *
+   * @param id Task UUID
+   * @returns Promise<Task> The reverted task
+   * @throws TaskValidationError if the task is not found
+   */
+  async uncompleteTask(id: string): Promise<Task> {
+    const task = await getTaskById(id);
+    if (!task) {
+      throw new TaskValidationError(`Task with ID ${id} not found`);
+    }
+
+    // Idempotent: if already pending, return unchanged
+    if (task.status === 'pending') {
+      return task;
+    }
+
+    // Revert status to pending, clear completion fields
+    const updated = await dbUpdateTask(id, {
+      status: 'pending',
+      completedAt: null,
+      completedBy: null,
+    });
+
+    // Remove associated task history entry
+    await deleteHistoryEntryByTaskId(id);
+
+    return updated!;
   }
 
   /**

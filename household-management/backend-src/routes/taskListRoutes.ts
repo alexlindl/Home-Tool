@@ -10,6 +10,7 @@ import {
   createTaskList,
   updateTaskList,
   deleteTaskList,
+  findTaskListByName,
 } from '../db/listQueries';
 
 const router = Router();
@@ -88,7 +89,27 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const list = await updateTaskList(id, name.trim());
+    const trimmedName = name.trim();
+
+    if (trimmedName.length > 100) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Name must not exceed 100 characters',
+      });
+      return;
+    }
+
+    // Check for duplicate name (case-insensitive), excluding current list
+    const duplicate = await findTaskListByName(trimmedName, id);
+    if (duplicate) {
+      res.status(409).json({
+        status: 'error',
+        message: 'A task list with this name already exists',
+      });
+      return;
+    }
+
+    const list = await updateTaskList(id, trimmedName);
 
     if (!list) {
       res.status(404).json({

@@ -19,9 +19,9 @@ describe('UserService', () => {
 
   // Mock users
   const mockUsers: User[] = [
-    { id: '1', name: 'Alex', createdAt: new Date('2024-01-01') },
-    { id: '2', name: 'Becky', createdAt: new Date('2024-01-01') },
-    { id: '3', name: 'Sam', createdAt: new Date('2024-01-01') },
+    { id: '1', name: 'Alex', haUsername: null, createdAt: new Date('2024-01-01') },
+    { id: '2', name: 'Becky', haUsername: null, createdAt: new Date('2024-01-01') },
+    { id: '3', name: 'Sam', haUsername: null, createdAt: new Date('2024-01-01') },
   ];
 
   beforeEach(() => {

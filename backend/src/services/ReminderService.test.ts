@@ -13,6 +13,11 @@ import * as socketServer from '../websocket/socketServer';
 // Mock dependencies
 jest.mock('../db/taskQueries');
 jest.mock('../websocket/socketServer');
+jest.mock('./NotificationService', () => ({
+  notificationService: {
+    checkAndSendNotifications: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 const mockGetTasks = taskQueries.getTasks as jest.MockedFunction<typeof taskQueries.getTasks>;
 const mockGetIO = socketServer.getIO as jest.MockedFunction<typeof socketServer.getIO>;

@@ -6,7 +6,8 @@
 import { Router, Request, Response } from 'express';
 import { taskService } from '../services/TaskService';
 import { TaskValidationError } from '../services/TaskService';
-import { TaskFilters, getBacklogTasks } from '../db/taskQueries';
+import { TaskFilters, getBacklogTasks, getTaskById, moveTask } from '../db/taskQueries';
+import { getTaskListById } from '../db/listQueries';
 import { EnhancedRecurrencePattern, DayOfWeek, RecurrencePatternType } from '../utils/recurrenceEngine';
 
 const router = Router();
@@ -641,6 +642,103 @@ router.post('/:id/complete', async (req: Request, res: Response): Promise<void> 
     res.status(500).json({
       status: 'error',
       message: 'Failed to complete task',
+    });
+  }
+});
+
+/**
+ * POST /api/tasks/:id/uncomplete
+ * Undo task completion — revert to pending state
+ *
+ * Response: 200 OK
+ * { "task": { ... } }
+ *
+ * Response: 404 Not Found
+ * { "status": "error", "message": "Task not found" }
+ */
+router.post('/:id/uncomplete', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const task = await taskService.uncompleteTask(id as string);
+
+    res.status(200).json({ task });
+  } catch (error) {
+    console.error('Error uncompleting task:', error);
+
+    if (error instanceof TaskValidationError && error.message.includes('not found')) {
+      res.status(404).json({
+        status: 'error',
+        message: error.message,
+      });
+      return;
+    }
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to uncomplete task',
+    });
+  }
+});
+
+/**
+ * PATCH /api/tasks/:id/move
+ * Move a task to a different list
+ *
+ * Request body:
+ * { "targetListId": "uuid" }
+ *
+ * Response: 200 OK
+ * { "task": { ... } }
+ *
+ * Response: 400 Bad Request (missing targetListId)
+ * { "status": "error", "message": "targetListId is required" }
+ *
+ * Response: 404 Not Found (target list or task not found)
+ * { "status": "error", "message": "..." }
+ */
+router.patch('/:id/move', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { targetListId } = req.body;
+
+    // Validate targetListId is present
+    if (!targetListId) {
+      res.status(400).json({
+        status: 'error',
+        message: 'targetListId is required',
+      });
+      return;
+    }
+
+    // Validate target list exists
+    const targetList = await getTaskListById(targetListId);
+    if (!targetList) {
+      res.status(404).json({
+        status: 'error',
+        message: `Target list with ID ${targetListId} not found`,
+      });
+      return;
+    }
+
+    // Validate task exists
+    const existingTask = await getTaskById(id as string);
+    if (!existingTask) {
+      res.status(404).json({
+        status: 'error',
+        message: `Task with ID ${id} not found`,
+      });
+      return;
+    }
+
+    // Move the task
+    const updatedTask = await moveTask(id as string, targetListId);
+    res.status(200).json({ task: updatedTask });
+  } catch (error) {
+    console.error('Error moving task:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to move task',
     });
   }
 });

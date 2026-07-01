@@ -20,14 +20,17 @@ import {
   CategoryRecord,
 } from '@/services/api';
 import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import DashboardIntegration from '@/components/DashboardIntegration';
 
-type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme' | 'about';
+type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme' | 'dashboard' | 'about';
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'templates', label: 'Templates' },
   { id: 'categories', label: 'Categories' },
   { id: 'users', label: 'Users' },
   { id: 'lists', label: 'Lists' },
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'database', label: 'Database' },
   { id: 'backup', label: 'Backup' },
   { id: 'theme', label: 'Theme' },
@@ -46,6 +49,11 @@ const UserManagement: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  // HA linking state
+  const [editingHaId, setEditingHaId] = useState<string | null>(null);
+  const [haInput, setHaInput] = useState('');
+  const [haError, setHaError] = useState('');
+  const [haLoading, setHaLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -95,6 +103,51 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const handleHaEdit = (user: User) => {
+    setEditingHaId(user.id);
+    setHaInput(user.haUsername || '');
+    setHaError('');
+  };
+
+  const handleHaCancel = () => {
+    setEditingHaId(null);
+    setHaInput('');
+    setHaError('');
+  };
+
+  const handleHaConfirm = async (id: string) => {
+    setHaLoading(true);
+    setHaError('');
+    try {
+      await userApi.patchHaLink(id, haInput.trim());
+      setEditingHaId(null);
+      setHaInput('');
+      await fetchUsers();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string } } };
+      if (axiosErr.response?.status === 409) {
+        setHaError(axiosErr.response.data?.message || 'This HA username is already linked to another user');
+      } else {
+        setHaError(axiosErr.response?.data?.message || 'Failed to update HA link');
+      }
+    } finally {
+      setHaLoading(false);
+    }
+  };
+
+  const handleHaUnlink = async (id: string) => {
+    setHaLoading(true);
+    setHaError('');
+    try {
+      await userApi.patchHaLink(id, '');
+      await fetchUsers();
+    } catch {
+      setHaError('Failed to unlink HA account');
+    } finally {
+      setHaLoading(false);
+    }
+  };
+
   if (loading) return <p className="loading-state">Loading users...</p>;
 
   return (
@@ -104,7 +157,7 @@ const UserManagement: React.FC = () => {
 
       <div className="settings-list">
         {users.map((user) => (
-          <div key={user.id} className="settings-list-item">
+          <div key={user.id} className="settings-list-item" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
             {editingId === user.id ? (
               <div className="settings-inline-edit">
                 <input
@@ -118,7 +171,7 @@ const UserManagement: React.FC = () => {
                 <button className="btn btn--secondary" onClick={() => setEditingId(null)}>Cancel</button>
               </div>
             ) : (
-              <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                 <span className="settings-list-name">{user.name}</span>
                 <div className="settings-list-actions">
                   <button
@@ -134,8 +187,83 @@ const UserManagement: React.FC = () => {
                     Delete
                   </button>
                 </div>
-              </>
+              </div>
             )}
+
+            {/* Home Assistant Account Section */}
+            <div className="settings-ha-section" style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border, #e0e0e0)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary)' }}>
+                  Home Assistant Account
+                </span>
+              </div>
+              {editingHaId === user.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="settings-inline-edit">
+                    <input
+                      type="text"
+                      value={haInput}
+                      onChange={(e) => setHaInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleHaConfirm(user.id);
+                        if (e.key === 'Escape') handleHaCancel();
+                      }}
+                      placeholder="HA username"
+                      maxLength={128}
+                      autoFocus
+                      disabled={haLoading}
+                    />
+                    <button
+                      className="btn btn--primary"
+                      onClick={() => handleHaConfirm(user.id)}
+                      disabled={haLoading}
+                    >
+                      {haLoading ? '...' : 'Save'}
+                    </button>
+                    <button
+                      className="btn btn--secondary"
+                      onClick={handleHaCancel}
+                      disabled={haLoading}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {haError && <p className="error-state" style={{ margin: 0, fontSize: '0.8rem' }}>{haError}</p>}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                    {user.haUsername ? (
+                      <>
+                        <span style={{ color: 'var(--color-text)' }}>{user.haUsername}</span>
+                        <span style={{ marginLeft: 8 }}>Notifications: Active</span>
+                      </>
+                    ) : (
+                      <span>Not linked — Link HA account to enable notifications</span>
+                    )}
+                  </div>
+                  <div className="settings-list-actions">
+                    <button
+                      className="btn btn--text"
+                      onClick={() => handleHaEdit(user)}
+                      style={{ fontSize: '0.8rem' }}
+                    >
+                      {user.haUsername ? 'Edit' : 'Link'}
+                    </button>
+                    {user.haUsername && (
+                      <button
+                        className="btn btn--text settings-btn-danger"
+                        onClick={() => handleHaUnlink(user.id)}
+                        style={{ fontSize: '0.8rem' }}
+                        disabled={haLoading}
+                      >
+                        Unlink
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -719,6 +847,16 @@ const ListManagement: React.FC = () => {
   const [editingTaskListId, setEditingTaskListId] = useState<string | null>(null);
   const [editingShoppingListId, setEditingShoppingListId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [renameError, setRenameError] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const editInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Select all text when entering edit mode
+  useEffect(() => {
+    if ((editingTaskListId || editingShoppingListId) && editInputRef.current) {
+      editInputRef.current.select();
+    }
+  }, [editingTaskListId, editingShoppingListId]);
 
   const fetchLists = useCallback(async () => {
     try {
@@ -762,24 +900,54 @@ const ListManagement: React.FC = () => {
 
   const handleRenameTaskList = async (id: string) => {
     if (!editName.trim()) return;
+    setRenaming(true);
+    setRenameError('');
     try {
       await taskListApi.update(id, editName.trim());
       setEditingTaskListId(null);
+      setRenameError('');
       await fetchLists();
-    } catch {
-      setError('Failed to rename task list');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string } } };
+      if (axiosErr.response?.status === 400 || axiosErr.response?.status === 409) {
+        setRenameError(axiosErr.response.data?.message || 'Failed to rename task list');
+      } else {
+        setRenameError('Failed to rename task list. Please try again.');
+      }
+    } finally {
+      setRenaming(false);
     }
   };
 
   const handleRenameShoppingList = async (id: string) => {
     if (!editName.trim()) return;
+    setRenaming(true);
+    setRenameError('');
     try {
       await shoppingListApi.update(id, editName.trim());
       setEditingShoppingListId(null);
+      setRenameError('');
       await fetchLists();
-    } catch {
-      setError('Failed to rename shopping list');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string } } };
+      if (axiosErr.response?.status === 400 || axiosErr.response?.status === 409) {
+        setRenameError(axiosErr.response.data?.message || 'Failed to rename shopping list');
+      } else {
+        setRenameError('Failed to rename shopping list. Please try again.');
+      }
+    } finally {
+      setRenaming(false);
     }
+  };
+
+  const cancelTaskListEdit = () => {
+    setEditingTaskListId(null);
+    setRenameError('');
+  };
+
+  const cancelShoppingListEdit = () => {
+    setEditingShoppingListId(null);
+    setRenameError('');
   };
 
   const handleDeleteTaskList = async (id: string) => {
@@ -813,15 +981,41 @@ const ListManagement: React.FC = () => {
           <div key={list.id} className="settings-list-item">
             {editingTaskListId === list.id ? (
               <div className="settings-inline-edit">
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleRenameTaskList(list.id)}
-                  autoFocus
-                />
-                <button className="btn btn--primary" onClick={() => handleRenameTaskList(list.id)}>Save</button>
-                <button className="btn btn--secondary" onClick={() => setEditingTaskListId(null)}>Cancel</button>
+                <div style={{ flex: 1 }}>
+                  <input
+                    ref={editInputRef}
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !renaming) handleRenameTaskList(list.id);
+                      if (e.key === 'Escape') cancelTaskListEdit();
+                    }}
+                    onBlur={() => { if (!renaming) cancelTaskListEdit(); }}
+                    maxLength={100}
+                    autoFocus
+                    disabled={renaming}
+                  />
+                  {renameError && editingTaskListId === list.id && (
+                    <p className="error-state" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>{renameError}</p>
+                  )}
+                </div>
+                <button
+                  className="btn btn--primary"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleRenameTaskList(list.id)}
+                  disabled={renaming}
+                >
+                  {renaming ? '...' : 'Save'}
+                </button>
+                <button
+                  className="btn btn--secondary"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={cancelTaskListEdit}
+                  disabled={renaming}
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
               <>
@@ -832,9 +1026,9 @@ const ListManagement: React.FC = () => {
                 <div className="settings-list-actions">
                   <button
                     className="btn btn--text"
-                    onClick={() => { setEditingTaskListId(list.id); setEditName(list.name); }}
+                    onClick={() => { setEditingTaskListId(list.id); setEditName(list.name); setRenameError(''); }}
                   >
-                    Rename
+                    ✏️ Rename
                   </button>
                   {!list.isDefault && (
                     <button
@@ -869,15 +1063,41 @@ const ListManagement: React.FC = () => {
           <div key={list.id} className="settings-list-item">
             {editingShoppingListId === list.id ? (
               <div className="settings-inline-edit">
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleRenameShoppingList(list.id)}
-                  autoFocus
-                />
-                <button className="btn btn--primary" onClick={() => handleRenameShoppingList(list.id)}>Save</button>
-                <button className="btn btn--secondary" onClick={() => setEditingShoppingListId(null)}>Cancel</button>
+                <div style={{ flex: 1 }}>
+                  <input
+                    ref={editInputRef}
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !renaming) handleRenameShoppingList(list.id);
+                      if (e.key === 'Escape') cancelShoppingListEdit();
+                    }}
+                    onBlur={() => { if (!renaming) cancelShoppingListEdit(); }}
+                    maxLength={100}
+                    autoFocus
+                    disabled={renaming}
+                  />
+                  {renameError && editingShoppingListId === list.id && (
+                    <p className="error-state" style={{ margin: '4px 0 0', fontSize: '0.8rem' }}>{renameError}</p>
+                  )}
+                </div>
+                <button
+                  className="btn btn--primary"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleRenameShoppingList(list.id)}
+                  disabled={renaming}
+                >
+                  {renaming ? '...' : 'Save'}
+                </button>
+                <button
+                  className="btn btn--secondary"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={cancelShoppingListEdit}
+                  disabled={renaming}
+                >
+                  Cancel
+                </button>
               </div>
             ) : (
               <>
@@ -888,9 +1108,9 @@ const ListManagement: React.FC = () => {
                 <div className="settings-list-actions">
                   <button
                     className="btn btn--text"
-                    onClick={() => { setEditingShoppingListId(list.id); setEditName(list.name); }}
+                    onClick={() => { setEditingShoppingListId(list.id); setEditName(list.name); setRenameError(''); }}
                   >
-                    Rename
+                    ✏️ Rename
                   </button>
                   {!list.isDefault && (
                     <button
@@ -1041,7 +1261,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.5.8-alpha';
+const APP_VERSION = '0.6.0-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1109,6 +1329,40 @@ const AboutSection: React.FC = () => {
 };
 
 // ===========================================================================
+// DashboardIntegrationTab (wrapper that fetches users for DashboardIntegration)
+// ===========================================================================
+
+const DashboardIntegrationTab: React.FC = () => {
+  const { currentUser } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const data = await userApi.getAllUsers();
+        setUsers(data);
+        setError('');
+      } catch {
+        setError('Failed to load users');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  if (loading) return <p className="loading-state">Loading dashboard integration...</p>;
+  if (error) return <p className="error-state">{error}</p>;
+  if (users.length === 0) return <p className="loading-state">No users found. Add users first.</p>;
+
+  const currentUserId = currentUser?.id || users[0].id;
+
+  return <DashboardIntegration users={users} currentUserId={currentUserId} />;
+};
+
+// ===========================================================================
 // Settings Page (Main)
 // ===========================================================================
 
@@ -1149,6 +1403,7 @@ export const Settings: React.FC = () => {
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'templates' && <TemplateManagement />}
         {activeTab === 'lists' && <ListManagement />}
+        {activeTab === 'dashboard' && <DashboardIntegrationTab />}
         {activeTab === 'backup' && <BackupRestore />}
         {activeTab === 'theme' && <ThemeSelector />}
         {activeTab === 'about' && <AboutSection />}
