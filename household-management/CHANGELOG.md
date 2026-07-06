@@ -2,6 +2,26 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.3-alpha] - 2026-07-06
+
+### Fixed
+- Date picker now shows native calendar popup in HA ingress iframe (CSS appearance fix)
+- Shopping item autocomplete now includes item templates (works on fresh lists)
+
+## [0.7.2-alpha] - 2026-07-06
+
+### Fixed
+- Backend build: added listId to Task interface and list_id to TaskRow + taskFromRow mapper
+- Backend build: added list_id: null to Task.test.ts and SummaryService.property.test.ts mocks
+- Backend build: fixed settingsRoutes req.params.key type cast (string | string[] → as string)
+- Docker cache bust: modified backend-package.json to force layer rebuild
+
+## [0.7.1-alpha] - 2026-07-06
+
+### Fixed
+- Frontend build: added non-null assertion to TaskAutocomplete suggestions[highlightIndex]
+- Docker cache bust: modified web-vite.config.ts to force layer rebuild
+
 ## [0.7.0-alpha] - 2026-07-06
 
 ### Added
