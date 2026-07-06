@@ -1,4 +1,5 @@
 /// <reference types="vitest" />
+// Build: 0.7.0-alpha
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
