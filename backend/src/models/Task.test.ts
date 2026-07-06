@@ -236,6 +236,7 @@ describe('taskFromRow maps enhanced recurrence fields', () => {
     recurrence_day_of_week: 'saturday',
     recurrence_ordinal_week: null,
     notification_lead_hours: null,
+    list_id: null,
     status: 'pending',
     completed_at: null,
     completed_by: null,

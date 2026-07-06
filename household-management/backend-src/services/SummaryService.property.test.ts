@@ -114,7 +114,7 @@ interface TaskRowWithMeta extends TaskRow {
 function simulateDbFilter(
   allRows: TaskRowWithMeta[],
   filters?: TaskSummaryFilters
-): (TaskRow & { assignee_name: string | null })[] {
+): (Omit<TaskRow, 'list_id'> & { assignee_name: string | null })[] {
   let filtered = allRows.filter(r => r.status === 'pending');
 
   if (filters?.assignedTo) {
