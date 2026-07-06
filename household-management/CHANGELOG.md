@@ -2,6 +2,31 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.0-alpha] - 2026-07-06
+
+### Added
+- Recurring task spawn fix: completing a recurring task now creates the next occurrence with correct listId and all fields preserved
+- Monthly and yearly recurrence patterns (every_n_months, every_n_years) added to recurrence engine
+- Native date picker replaces free-text date input in TaskForm (mobile-friendly)
+- RecurrenceSelector component: frequency dropdown (days/weeks/months/years) + interval input
+- Configurable notification lead time: global default (24h) + per-task override field
+- App settings API: GET/PUT /api/settings/:key for managing global configuration
+- Task title autocomplete: type 2+ characters to see previously-used titles (replaces template quick-add)
+- Shopping item autocomplete: type 1+ characters to see name-category pairs from history
+- Category auto-fill: selecting an existing item from autocomplete pre-fills the category
+- Same item name allowed in different categories (e.g., "tomatoes" in canned and produce)
+- Database migration 008: notification_lead_hours column + app_settings table
+
+### Changed
+- TaskForm defaults assignee to "Anyone" instead of current user
+- TaskForm template quick-add section removed (replaced by title autocomplete)
+- ReminderService and NotificationService now use configurable lead time window
+- AddItemForm uses ItemAutocomplete component for name input
+
+### Fixed
+- Recurring tasks now correctly spawn next occurrence instead of just completing
+- listId preserved when recurring task spawns (was lost, causing tasks to disappear from lists)
+
 ## [0.6.5-alpha] - 2026-07-01
 
 ### Added

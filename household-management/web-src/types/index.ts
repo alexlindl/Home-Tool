@@ -34,7 +34,7 @@ export interface RecurrencePattern {
  * Enhanced recurrence pattern (new format)
  */
 export interface EnhancedRecurrencePattern {
-  type: 'every_n_days' | 'every_specific_day' | 'every_nth_day' | 'every_n_weeks_on_day';
+  type: 'every_n_days' | 'every_specific_day' | 'every_nth_day' | 'every_n_weeks_on_day' | 'every_n_months' | 'every_n_years';
   interval: number;
   dayOfWeek?: string;
   ordinalWeek?: number;
@@ -61,6 +61,7 @@ export interface Task {
   status: 'pending' | 'completed';
   completedAt?: string; // ISO date string
   completedBy?: string; // User ID
+  notificationLeadHours?: number; // per-task notification override (hours)
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
@@ -117,6 +118,15 @@ export interface ShoppingItem {
 }
 
 /**
+ * Shopping search result - returned by the shopping item autocomplete endpoint
+ */
+export interface ShoppingSearchResult {
+  name: string;
+  category: string;
+  usageCount: number;
+}
+
+/**
  * Item template model - pre-populated or previously created shopping item definitions
  */
 export interface ItemTemplate {
@@ -143,6 +153,7 @@ export interface CreateTaskInput {
   dueDate: string | null; // ISO date string, null for backlog tasks
   isRecurring: boolean;
   recurrencePattern?: AnyRecurrencePattern;
+  notificationLeadHours?: number; // per-task notification override (hours)
   saveAsTemplate?: boolean; // opt-in template saving
 }
 
@@ -156,6 +167,7 @@ export interface UpdateTaskInput {
   dueDate?: string;
   isRecurring?: boolean;
   recurrencePattern?: AnyRecurrencePattern;
+  notificationLeadHours?: number; // per-task notification override (hours)
 }
 
 /**

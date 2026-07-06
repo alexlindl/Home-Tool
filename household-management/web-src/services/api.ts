@@ -21,6 +21,7 @@ import type {
   Category,
   TaskList,
   ShoppingList,
+  ShoppingSearchResult,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -179,6 +180,12 @@ export const taskApi = {
     const response = await apiClient.get<{ templates: TaskTemplate[] }>('/tasks/templates');
     return response.data.templates;
   },
+
+  /** Search distinct task titles for autocomplete */
+  async searchTitles(q: string): Promise<string[]> {
+    const response = await apiClient.get<{ titles: string[] }>('/tasks/titles', { params: { q } });
+    return response.data.titles;
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -247,6 +254,14 @@ export const shoppingApi = {
   async unpurchaseItem(id: string): Promise<ShoppingItem> {
     const response = await apiClient.post<{ item: ShoppingItem }>(`/shopping/${id}/unpurchase`);
     return response.data.item;
+  },
+
+  /** Search shopping items by name for autocomplete */
+  async search(q: string): Promise<ShoppingSearchResult[]> {
+    const response = await apiClient.get<{ results: ShoppingSearchResult[] }>('/shopping/search', {
+      params: { q },
+    });
+    return response.data.results;
   },
 
   /** Get item templates */

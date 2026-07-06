@@ -108,6 +108,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         'every_specific_day',
         'every_nth_day',
         'every_n_weeks_on_day',
+        'every_n_months',
+        'every_n_years',
       ];
       if (!recurrencePattern.type || !validTypes.includes(recurrencePattern.type)) {
         res.status(400).json({
@@ -462,6 +464,58 @@ router.get('/templates/search', async (req: Request, res: Response): Promise<voi
     res.status(500).json({
       status: 'error',
       message: 'Failed to search task templates',
+    });
+  }
+});
+
+/**
+ * GET /api/tasks/titles
+ * Search distinct task titles for autocomplete
+ *
+ * Query parameters:
+ *   q     - Search query (required, min 2 characters)
+ *   limit - Maximum results to return (optional, default 8)
+ *
+ * Response: 200 OK
+ * { "titles": ["Vacuum Living Room", "Vacuum Bedroom", ...] }
+ *
+ * Response: 400 Bad Request (query too short or missing)
+ * { "status": "error", "message": "Search query must be at least 2 characters" }
+ *
+ * Requirements: 6.3, 6.5, 6.6
+ */
+router.get('/titles', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q, limit } = req.query;
+
+    // Validate query parameter
+    const searchQuery = typeof q === 'string' ? q : '';
+    if (searchQuery.length < 2) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Search query must be at least 2 characters',
+      });
+      return;
+    }
+
+    // Parse and validate limit
+    let parsedLimit = 8;
+    if (limit !== undefined) {
+      const num = Number(limit);
+      if (!isNaN(num) && Number.isInteger(num) && num > 0) {
+        parsedLimit = num;
+      }
+    }
+
+    const { searchTaskTitles } = await import('../db/taskQueries');
+    const titles = await searchTaskTitles(searchQuery, parsedLimit);
+
+    res.status(200).json({ titles });
+  } catch (error) {
+    console.error('Error searching task titles:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to search task titles',
     });
   }
 });

@@ -33,6 +33,7 @@ export interface CreateTaskInput {
   recurrenceDayOfWeek?: string;     // Day for day-based patterns
   recurrenceOrdinalWeek?: number;   // 1-5 for Nth occurrence
   listId?: string;
+  notificationLeadHours?: number;   // Per-task notification lead time override (hours)
 }
 
 /**
@@ -50,6 +51,7 @@ export interface UpdateTaskInput {
   recurrenceType?: string | null;          // Enhanced pattern type
   recurrenceDayOfWeek?: string | null;     // Day for day-based patterns
   recurrenceOrdinalWeek?: number | null;   // 1-5 for Nth occurrence
+  notificationLeadHours?: number | null;   // Per-task notification lead time override (hours)
   status?: 'pending' | 'completed';
   completedAt?: Date | null;
   completedBy?: string | null;
@@ -85,8 +87,9 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
     `INSERT INTO tasks (
       title, description, assigned_to, created_by, due_date,
       is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date,
-      recurrence_type, recurrence_day_of_week, recurrence_ordinal_week, list_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      recurrence_type, recurrence_day_of_week, recurrence_ordinal_week, list_id,
+      notification_lead_hours
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     RETURNING *`,
     [
       input.title,
@@ -102,6 +105,7 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
       input.recurrenceDayOfWeek || null,
       input.recurrenceOrdinalWeek ?? null,
       listId,
+      input.notificationLeadHours ?? null,
     ]
   );
 
@@ -163,6 +167,10 @@ export const updateTask = async (id: string, input: UpdateTaskInput): Promise<Ta
   if (input.recurrenceOrdinalWeek !== undefined) {
     updates.push(`recurrence_ordinal_week = $${paramCount++}`);
     values.push(input.recurrenceOrdinalWeek);
+  }
+  if (input.notificationLeadHours !== undefined) {
+    updates.push(`notification_lead_hours = $${paramCount++}`);
+    values.push(input.notificationLeadHours);
   }
   if (input.status !== undefined) {
     updates.push(`status = $${paramCount++}`);
@@ -578,4 +586,27 @@ export const findTemplateByTitle = async (title: string): Promise<TaskTemplate |
   }
 
   return taskTemplateFromRow(result.rows[0] as TaskTemplateRow);
+};
+
+/**
+ * Search distinct task titles by substring match (case-insensitive), ordered by frequency DESC
+ * Used for task title autocomplete
+ * @param searchQuery Search string to match against task titles
+ * @param limit Maximum number of results to return (default 8)
+ * @returns Promise<string[]> Array of matching task titles ordered by usage frequency
+ */
+export const searchTaskTitles = async (
+  searchQuery: string,
+  limit: number = 8
+): Promise<string[]> => {
+  const result = await query(
+    `SELECT title, COUNT(*) as freq FROM tasks
+     WHERE title ILIKE '%' || $1 || '%'
+     GROUP BY title
+     ORDER BY freq DESC
+     LIMIT $2`,
+    [searchQuery, limit]
+  );
+
+  return result.rows.map((row: { title: string; freq: string }) => row.title);
 };

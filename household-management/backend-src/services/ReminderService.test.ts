@@ -8,10 +8,12 @@
 import { ReminderService, ReminderPayload } from './ReminderService';
 import { Task } from '../models/Task';
 import * as taskQueries from '../db/taskQueries';
+import * as settingsQueries from '../db/settingsQueries';
 import * as socketServer from '../websocket/socketServer';
 
 // Mock dependencies
 jest.mock('../db/taskQueries');
+jest.mock('../db/settingsQueries');
 jest.mock('../websocket/socketServer');
 jest.mock('./NotificationService', () => ({
   notificationService: {
@@ -20,6 +22,7 @@ jest.mock('./NotificationService', () => ({
 }));
 
 const mockGetTasks = taskQueries.getTasks as jest.MockedFunction<typeof taskQueries.getTasks>;
+const mockGetAppSetting = settingsQueries.getAppSetting as jest.MockedFunction<typeof settingsQueries.getAppSetting>;
 const mockGetIO = socketServer.getIO as jest.MockedFunction<typeof socketServer.getIO>;
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -53,6 +56,7 @@ describe('ReminderService', () => {
     mockIO = createMockIO();
     mockGetIO.mockReturnValue(mockIO as any);
     mockGetTasks.mockResolvedValue([]);
+    mockGetAppSetting.mockResolvedValue('24');
     jest.useFakeTimers();
   });
 
@@ -63,31 +67,23 @@ describe('ReminderService', () => {
   });
 
   describe('checkReminders', () => {
-    it('should query tasks due within the next 24 hours with pending status', async () => {
+    it('should query all pending tasks and filter by configurable lead time', async () => {
       jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
 
       await service.checkReminders();
 
       expect(mockGetTasks).toHaveBeenCalledWith({
         status: 'pending',
-        dueDateFrom: expect.any(Date),
-        dueDateTo: expect.any(Date),
       });
-
-      const callArgs = mockGetTasks.mock.calls[0][0]!;
-      const from = callArgs.dueDateFrom!;
-      const to = callArgs.dueDateTo!;
-
-      // dueDateFrom should be now
-      expect(from.getTime()).toBe(new Date('2024-06-01T08:00:00Z').getTime());
-      // dueDateTo should be now + 24h
-      expect(to.getTime()).toBe(new Date('2024-06-02T08:00:00Z').getTime());
+      expect(mockGetAppSetting).toHaveBeenCalledWith('notification_lead_hours');
     });
 
-    it('should send reminders for each task due within 24 hours', async () => {
+    it('should send reminders for tasks within lead time window', async () => {
       jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
 
+      // Task due in 4 hours (within 24h window)
       const task1 = createMockTask({ id: 'task-1', dueDate: new Date('2024-06-01T12:00:00Z') });
+      // Task due in 10 hours (within 24h window)
       const task2 = createMockTask({ id: 'task-2', title: 'Do Dishes', dueDate: new Date('2024-06-01T18:00:00Z') });
       mockGetTasks.mockResolvedValue([task1, task2]);
 
@@ -104,8 +100,112 @@ describe('ReminderService', () => {
       }));
     });
 
+    it('should not send reminders for tasks outside the lead time window', async () => {
+      jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
+
+      // Task due in 30 hours (outside default 24h window)
+      const task = createMockTask({ id: 'task-far', dueDate: new Date('2024-06-02T14:00:00Z') });
+      mockGetTasks.mockResolvedValue([task]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).not.toHaveBeenCalled();
+    });
+
+    it('should not send reminders for tasks already past due', async () => {
+      jest.setSystemTime(new Date('2024-06-02T08:00:00Z'));
+
+      // Task was due yesterday (past due, should not be "upcoming")
+      const task = createMockTask({ id: 'task-past', dueDate: new Date('2024-06-01T10:00:00Z') });
+      mockGetTasks.mockResolvedValue([task]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).not.toHaveBeenCalled();
+    });
+
+    it('should use per-task notificationLeadHours override when set', async () => {
+      jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
+
+      // Task due in 4 hours with 2h per-task override — NOT within window (8h is 4h before, need 2h window)
+      const taskOutside = createMockTask({
+        id: 'task-outside',
+        dueDate: new Date('2024-06-01T12:00:00Z'),
+        notificationLeadHours: 2,
+      });
+      // Task due in 1 hour with 2h per-task override — within window
+      const taskInside = createMockTask({
+        id: 'task-inside',
+        dueDate: new Date('2024-06-01T09:00:00Z'),
+        notificationLeadHours: 2,
+      });
+      mockGetTasks.mockResolvedValue([taskOutside, taskInside]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).toHaveBeenCalledTimes(1);
+      expect(mockIO.emit).toHaveBeenCalledWith('reminder:notify', expect.objectContaining({
+        taskId: 'task-inside',
+        type: 'upcoming',
+      }));
+    });
+
+    it('should use custom global default when app_settings has a value', async () => {
+      jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
+      mockGetAppSetting.mockResolvedValue('48'); // 48 hour lead time
+
+      // Task due in 30 hours — within 48h window
+      const task = createMockTask({ id: 'task-48h', dueDate: new Date('2024-06-02T14:00:00Z') });
+      mockGetTasks.mockResolvedValue([task]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).toHaveBeenCalledTimes(1);
+      expect(mockIO.emit).toHaveBeenCalledWith('reminder:notify', expect.objectContaining({
+        taskId: 'task-48h',
+        type: 'upcoming',
+      }));
+    });
+
+    it('should fall back to 24h when app_settings returns invalid value', async () => {
+      jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
+      mockGetAppSetting.mockResolvedValue('invalid');
+
+      // Task due in 4 hours (within fallback 24h window)
+      const task = createMockTask({ id: 'task-1', dueDate: new Date('2024-06-01T12:00:00Z') });
+      mockGetTasks.mockResolvedValue([task]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).toHaveBeenCalledTimes(1);
+    });
+
+    it('should fall back to 24h when getAppSetting throws', async () => {
+      jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
+      mockGetAppSetting.mockRejectedValue(new Error('DB error'));
+
+      // Task due in 4 hours (within fallback 24h window)
+      const task = createMockTask({ id: 'task-1', dueDate: new Date('2024-06-01T12:00:00Z') });
+      mockGetTasks.mockResolvedValue([task]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).toHaveBeenCalledTimes(1);
+    });
+
     it('should not send reminders when no tasks are due', async () => {
       mockGetTasks.mockResolvedValue([]);
+
+      await service.checkReminders();
+
+      expect(mockIO.emit).not.toHaveBeenCalled();
+    });
+
+    it('should skip tasks with no dueDate', async () => {
+      jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
+
+      const backlogTask = createMockTask({ id: 'task-backlog', dueDate: null });
+      mockGetTasks.mockResolvedValue([backlogTask]);
 
       await service.checkReminders();
 

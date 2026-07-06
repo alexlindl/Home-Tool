@@ -33,6 +33,7 @@ export interface Task {
   recurrenceType?: string;           // Enhanced pattern type
   recurrenceDayOfWeek?: string;      // Day for day-based enhanced patterns
   recurrenceOrdinalWeek?: number;    // 1-5 for Nth occurrence patterns
+  notificationLeadHours?: number;    // Per-task notification lead time override (hours)
   status: 'pending' | 'completed';
   completedAt?: Date;
   completedBy?: string;    // User ID
@@ -57,6 +58,7 @@ export interface TaskRow {
   recurrence_type: string | null;           // New: enhanced pattern type
   recurrence_day_of_week: string | null;    // New: day for day-based patterns
   recurrence_ordinal_week: number | null;   // New: 1-5 for Nth occurrence
+  notification_lead_hours: number | null;   // Per-task notification lead time override
   status: string;
   completed_at: Date | null;
   completed_by: string | null;
@@ -101,6 +103,11 @@ export const taskFromRow = (row: TaskRow): Task => {
   }
   if (row.recurrence_ordinal_week != null) {
     task.recurrenceOrdinalWeek = row.recurrence_ordinal_week;
+  }
+
+  // Add notification lead hours if set
+  if (row.notification_lead_hours != null) {
+    task.notificationLeadHours = row.notification_lead_hours;
   }
 
   return task;

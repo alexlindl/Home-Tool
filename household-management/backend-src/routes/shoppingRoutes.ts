@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { shoppingService, ShoppingValidationError } from '../services/ShoppingService';
 import { Category } from '../models/Shopping';
 import { getAllCategories } from '../db/categoryQueries';
-import { searchItemTemplates, getItemById, moveShoppingItem } from '../db/shoppingQueries';
+import { searchItemTemplates, searchShoppingItems, getItemById, moveShoppingItem } from '../db/shoppingQueries';
 import { getShoppingListById } from '../db/listQueries';
 
 const router = Router();
@@ -183,6 +183,50 @@ router.get('/templates/search', async (req: Request, res: Response): Promise<voi
     res.status(500).json({
       status: 'error',
       message: 'Failed to search item templates',
+    });
+  }
+});
+
+/**
+ * GET /api/shopping/search
+ * Search shopping items by name for autocomplete (returns name-category pairs)
+ *
+ * Query parameters:
+ *   q     - Search query (required, min 1 character)
+ *   limit - Maximum results to return (optional, default 8)
+ *
+ * Response: 200 OK
+ * { "results": [{ "name": "...", "category": "...", "usageCount": 5 }] }
+ *
+ * Response: 400 Bad Request
+ * { "status": "error", "message": "Search query must be at least 1 character" }
+ *
+ * Requirements: 8.1, 8.2, 8.3
+ */
+router.get('/search', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q, limit } = req.query;
+
+    const searchQuery = (q as string || '').trim();
+
+    if (searchQuery.length < 1) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Search query must be at least 1 character',
+      });
+      return;
+    }
+
+    const parsedLimit = limit ? Math.min(Math.max(1, parseInt(limit as string, 10) || 8), 20) : 8;
+
+    const results = await searchShoppingItems(searchQuery, parsedLimit);
+
+    res.status(200).json({ results });
+  } catch (error) {
+    console.error('Error searching shopping items:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to search shopping items',
     });
   }
 });

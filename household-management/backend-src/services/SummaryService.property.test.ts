@@ -85,6 +85,7 @@ function taskRowsArb(userIds: string[], listIds: string[], userNames: string[]) 
     recurrence_type: fc.constant(null),
     recurrence_day_of_week: fc.constant(null),
     recurrence_ordinal_week: fc.constant(null),
+    notification_lead_hours: fc.constant(null),
     status: fc.constant('pending' as const),
     completed_at: fc.constant(null),
     completed_by: fc.constant(null),

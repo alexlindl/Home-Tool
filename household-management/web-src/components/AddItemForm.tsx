@@ -1,13 +1,15 @@
 /**
  * AddItemForm Component
  * Modal/dialog for adding a shopping item with template quick-add chips.
+ * Uses ItemAutocomplete for name input with category auto-fill.
  *
- * Requirements: 7.1, 8.1
+ * Requirements: 7.1, 7.2, 7.3, 8.1, 9.1, 9.2
  */
 
 import React, { useState, useEffect } from 'react';
 import type { ShoppingItem, ItemTemplate, Category } from '@/types';
 import { shoppingApi, categoryApi } from '@/services/api';
+import { ItemAutocomplete } from '@/components/ItemAutocomplete';
 
 interface AddItemFormProps {
   open: boolean;
@@ -105,6 +107,17 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
     }
   };
 
+  const handleSelectItem = (selectedName: string, selectedCategory: string) => {
+    setName(selectedName);
+    // Auto-fill category if it exists in the available categories
+    if (categories.includes(selectedCategory)) {
+      setCategory(selectedCategory as Category);
+      setShowNewCategory(false);
+      setNewCategoryName('');
+      setCategoryError('');
+    }
+  };
+
   const handleQuickAdd = async (template: ItemTemplate) => {
     setSubmitting(true);
     try {
@@ -150,20 +163,12 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
         <form onSubmit={handleSubmit} className="add-item-form">
           <div className="form-group">
             <label htmlFor="item-name">Item Name *</label>
-            <input
-              id="item-name"
-              type="text"
+            <ItemAutocomplete
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={setName}
+              onSelectItem={handleSelectItem}
               placeholder="Enter item name"
-              required
-              list="item-templates"
             />
-            <datalist id="item-templates">
-              {templates.map((t) => (
-                <option key={t.id} value={t.name} />
-              ))}
-            </datalist>
           </div>
 
           <div className="form-group">

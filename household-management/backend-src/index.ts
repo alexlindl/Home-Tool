@@ -12,6 +12,7 @@ import taskListRoutes from './routes/taskListRoutes';
 import shoppingListRoutes from './routes/shoppingListRoutes';
 import summaryRoutes from './routes/summaryRoutes';
 import widgetRoutes from './routes/widgetRoutes';
+import settingsRoutes from './routes/settingsRoutes';
 import { sanitizeStrings } from './middleware/validation';
 import { initializeWebSocket } from './websocket';
 import { reminderService } from './services';
@@ -81,7 +82,7 @@ app.get('/health/db', async (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Household Management API',
-    version: '0.6.5-alpha',
+    version: '0.7.0-alpha',
     endpoints: {
       health: '/health',
       healthDb: '/health/db',
@@ -100,6 +101,7 @@ app.use('/api/task-lists', taskListRoutes);
 app.use('/api/shopping-lists', shoppingListRoutes);
 app.use('/api/summary', summaryRoutes);
 app.use('/api/widgets', widgetRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

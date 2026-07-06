@@ -10,6 +10,7 @@ import { Task } from '../models/Task';
 import { User } from '../models/User';
 import { getLinkedUsers } from '../db/userQueries';
 import { getTasks, TaskFilters } from '../db/taskQueries';
+import { getAppSetting } from '../db/settingsQueries';
 
 export type NotificationType = 'due' | 'overdue';
 
@@ -31,19 +32,22 @@ export class NotificationService {
 
   /**
    * Check for due/overdue tasks and send notifications to linked HA users.
+   * Uses configurable notification lead time (global default + per-task override).
    * - Queries all users with linked HA accounts
-   * - Finds pending tasks with due dates on or before today
+   * - Finds pending tasks within the lead time window or overdue
    * - Resolves notification targets based on task assignment
    * - Sends deduplicated notifications via HA API
    *
-   * Validates: Requirements 7.1, 7.2, 7.3, 7.4
+   * Validates: Requirements 5.5, 7.1, 7.2, 7.3, 7.4
    */
   async checkAndSendNotifications(): Promise<void> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
 
     const linkedUsers = await getLinkedUsers();
     if (linkedUsers.length === 0) return;
+
+    // Read global default lead time (falls back to 24 hours if not set or invalid)
+    const globalDefault = await this.getGlobalLeadHours();
 
     const filters: TaskFilters = { status: 'pending' };
     const pendingTasks = await getTasks(filters);
@@ -51,23 +55,48 @@ export class NotificationService {
     for (const task of pendingTasks) {
       if (!task.dueDate) continue;
 
-      const dueDay = new Date(task.dueDate);
-      dueDay.setHours(0, 0, 0, 0);
+      const effectiveLeadHours = task.notificationLeadHours ?? globalDefault;
+      const leadTimeMs = effectiveLeadHours * 60 * 60 * 1000;
+      const windowStart = new Date(task.dueDate.getTime() - leadTimeMs);
 
       let type: NotificationType | null = null;
-      if (dueDay.getTime() === today.getTime()) {
-        type = 'due';
-      } else if (dueDay.getTime() < today.getTime()) {
+
+      if (now > task.dueDate) {
+        // Task is overdue (current time is past due date)
         type = 'overdue';
+      } else if (now >= windowStart && now <= task.dueDate) {
+        // Task is within the notification lead time window
+        type = 'due';
       }
+
       if (!type) continue;
 
       // Resolve notification targets
       const targets = this.resolveTargets(task, linkedUsers);
 
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+
       for (const user of targets) {
         await this.sendNotification(user, task, type, today);
       }
+    }
+  }
+
+  /**
+   * Read the global notification lead hours from app_settings.
+   * Falls back to 24 if the setting doesn't exist or is invalid.
+   *
+   * @returns The global lead time in hours (positive number, default 24)
+   */
+  private async getGlobalLeadHours(): Promise<number> {
+    try {
+      const raw = await getAppSetting('notification_lead_hours');
+      if (raw === null) return 24;
+      const parsed = parseInt(raw, 10);
+      return isNaN(parsed) || parsed <= 0 ? 24 : parsed;
+    } catch {
+      return 24;
     }
   }
 

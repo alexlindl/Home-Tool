@@ -399,6 +399,7 @@ export class TaskService {
     );
 
     // Step 4 – generate next occurrence for recurring tasks (Requirement 4.5)
+    // Guard: if isRecurring but recurrencePattern is missing, skip spawning (Requirement 1.4)
     if (task.isRecurring && task.recurrencePattern) {
       // Determine if this task has enhanced recurrence data
       // by checking for recurrence_type via the task's dueDate and pattern
@@ -417,6 +418,7 @@ export class TaskService {
           createdBy: task.createdBy,
           dueDate: nextDueDate,
           isRecurring: true,
+          listId: task.listId,  // Preserve listId on spawn (Requirements 1.2, 1.3)
           recurrenceFrequency: task.recurrencePattern.frequency,
           recurrenceInterval: enhancedPattern.interval,
           recurrenceEndDate: enhancedPattern.endDate ?? task.recurrencePattern.endDate,
@@ -438,6 +440,7 @@ export class TaskService {
           createdBy: task.createdBy,
           dueDate: nextDueDate,
           isRecurring: true,
+          listId: task.listId,  // Preserve listId on spawn (Requirements 1.2, 1.3)
           recurrenceFrequency: task.recurrencePattern.frequency,
           recurrenceInterval: task.recurrencePattern.interval,
           recurrenceEndDate: task.recurrencePattern.endDate,

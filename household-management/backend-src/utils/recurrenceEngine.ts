@@ -3,7 +3,9 @@ export type RecurrencePatternType =
   | 'every_n_days' // e.g., every 4 days
   | 'every_specific_day' // e.g., every Tuesday
   | 'every_nth_day' // e.g., every 2nd Wednesday
-  | 'every_n_weeks_on_day'; // e.g., every 4 weeks on Saturday
+  | 'every_n_weeks_on_day' // e.g., every 4 weeks on Saturday
+  | 'every_n_months' // e.g., every 2 months
+  | 'every_n_years'; // e.g., every 1 year
 
 /** Days of the week */
 export type DayOfWeek =
@@ -59,6 +61,8 @@ export function validateRecurrencePattern(
     'every_specific_day',
     'every_nth_day',
     'every_n_weeks_on_day',
+    'every_n_months',
+    'every_n_years',
   ];
   if (!validTypes.includes(pattern.type)) {
     return { valid: false, error: 'Invalid recurrence pattern type' };
@@ -183,6 +187,10 @@ export function calculateNextDueDate(
         pattern.dayOfWeek!,
         pattern.interval,
       );
+    case 'every_n_months':
+      return calculateEveryNMonths(currentDueDate, pattern.interval);
+    case 'every_n_years':
+      return calculateEveryNYears(currentDueDate, pattern.interval);
   }
 }
 
@@ -274,5 +282,48 @@ function calculateEveryNWeeksOnDay(
 
   const result = new Date(currentDueDate);
   result.setDate(result.getDate() + daysToAdd);
+  return result;
+}
+
+/**
+ * every_n_months: advance month by interval, handle year rollover,
+ * clamp day-of-month to the target month's length.
+ * e.g., Jan 31 + 1 month = Feb 28 (or Feb 29 in leap year)
+ */
+function calculateEveryNMonths(currentDueDate: Date, interval: number): Date {
+  const originalDay = currentDueDate.getDate();
+  const result = new Date(currentDueDate);
+
+  // Advance month by interval (setMonth handles year rollover automatically)
+  result.setMonth(result.getMonth() + interval);
+
+  // If the day overflowed (e.g., Jan 31 → Mar 3 instead of Feb 28),
+  // clamp to the last day of the target month
+  if (result.getDate() !== originalDay) {
+    // Overflow happened — go back to last day of previous month
+    result.setDate(0);
+  }
+
+  return result;
+}
+
+/**
+ * every_n_years: advance year by interval, handle Feb 29 in non-leap years.
+ * e.g., Feb 29, 2024 + 1 year = Feb 28, 2025
+ */
+function calculateEveryNYears(currentDueDate: Date, interval: number): Date {
+  const originalDay = currentDueDate.getDate();
+  const result = new Date(currentDueDate);
+
+  // Advance year by interval
+  result.setFullYear(result.getFullYear() + interval);
+
+  // If the day overflowed (Feb 29 in leap year → Mar 1 in non-leap year),
+  // clamp to the last day of the target month
+  if (result.getDate() !== originalDay) {
+    // Overflow happened — go back to last day of previous month
+    result.setDate(0);
+  }
+
   return result;
 }

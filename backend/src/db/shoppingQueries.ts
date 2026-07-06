@@ -225,6 +225,47 @@ export const moveShoppingItem = async (itemId: string, targetListId: string): Pr
 };
 
 // ---------------------------------------------------------------------------
+// Shopping item search (autocomplete)
+// ---------------------------------------------------------------------------
+
+/**
+ * Result type for shopping item search
+ */
+export interface ShoppingSearchResult {
+  name: string;
+  category: string;
+  usageCount: number;
+}
+
+/**
+ * Search shopping items by name substring (case-insensitive) for autocomplete.
+ * Returns distinct name-category pairs ordered by usage count descending.
+ * @param searchQuery Search string to match against item names
+ * @param limit Maximum number of results to return (default 8)
+ * @returns Promise<ShoppingSearchResult[]> Array of matching name-category pairs
+ */
+export const searchShoppingItems = async (
+  searchQuery: string,
+  limit: number = 8
+): Promise<ShoppingSearchResult[]> => {
+  const result = await query(
+    `SELECT name, category, COUNT(*) as usage_count
+     FROM shopping_items
+     WHERE name ILIKE '%' || $1 || '%'
+     GROUP BY name, category
+     ORDER BY usage_count DESC
+     LIMIT $2`,
+    [searchQuery, limit]
+  );
+
+  return result.rows.map((row: { name: string; category: string; usage_count: string }) => ({
+    name: row.name,
+    category: row.category,
+    usageCount: parseInt(row.usage_count, 10),
+  }));
+};
+
+// ---------------------------------------------------------------------------
 // Item Template queries
 // ---------------------------------------------------------------------------
 

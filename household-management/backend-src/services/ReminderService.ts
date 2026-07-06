@@ -8,6 +8,7 @@
 
 import { Task, isTaskOverdue } from '../models/Task';
 import { getTasks, TaskFilters } from '../db/taskQueries';
+import { getAppSetting } from '../db/settingsQueries';
 import { getIO } from '../websocket/socketServer';
 import { notificationService } from './NotificationService';
 
@@ -39,25 +40,50 @@ export class ReminderService {
   private static readonly DEFAULT_INTERVAL_MS = 5 * 60 * 1000;
 
   /**
-   * Check for tasks due within the next 24 hours and send reminders.
-   * Queries pending tasks with dueDate between now and now + 24h.
+   * Check for tasks due within the configurable lead time window and send reminders.
+   * Reads global default from app_settings, then uses per-task override if set.
+   * A task is within the window if: currentTime >= dueDate - effectiveLeadHours AND currentTime <= dueDate
    *
-   * Validates: Requirements 5.1
+   * Validates: Requirements 5.1, 5.2, 5.3, 5.4
    */
   async checkReminders(): Promise<void> {
     const now = new Date();
-    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    const filters: TaskFilters = {
-      status: 'pending',
-      dueDateFrom: now,
-      dueDateTo: in24Hours,
-    };
+    // Read global default lead time (falls back to 24 hours if not set or invalid)
+    const globalDefault = await this.getGlobalLeadHours();
 
+    // Query all pending tasks (we need per-task lead time, so filter in code)
+    const filters: TaskFilters = { status: 'pending' };
     const tasks = await getTasks(filters);
 
     for (const task of tasks) {
-      await this.sendReminder(task, 'upcoming');
+      if (!task.dueDate) continue;
+
+      const effectiveLeadHours = task.notificationLeadHours ?? globalDefault;
+      const leadTimeMs = effectiveLeadHours * 60 * 60 * 1000;
+      const windowStart = new Date(task.dueDate.getTime() - leadTimeMs);
+
+      // Check if current time is within [dueDate - effectiveLeadHours, dueDate]
+      if (now >= windowStart && now <= task.dueDate) {
+        await this.sendReminder(task, 'upcoming');
+      }
+    }
+  }
+
+  /**
+   * Read the global notification lead hours from app_settings.
+   * Falls back to 24 if the setting doesn't exist or is invalid.
+   *
+   * @returns The global lead time in hours (positive number, default 24)
+   */
+  private async getGlobalLeadHours(): Promise<number> {
+    try {
+      const raw = await getAppSetting('notification_lead_hours');
+      if (raw === null) return 24;
+      const parsed = parseInt(raw, 10);
+      return isNaN(parsed) || parsed <= 0 ? 24 : parsed;
+    } catch {
+      return 24;
     }
   }
 

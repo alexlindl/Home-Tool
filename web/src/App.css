@@ -2176,3 +2176,59 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+
+/* --- Autocomplete Dropdown --- */
+.autocomplete-container {
+  position: relative;
+  width: 100%;
+}
+
+.autocomplete-container input {
+  width: 100%;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.autocomplete-item,
+.autocomplete-option {
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item--highlighted,
+.autocomplete-option:hover,
+.autocomplete-option--highlighted {
+  background: var(--color-active-bg, #f0f7ff);
+}
+
+.autocomplete-option-name {
+  font-weight: 500;
+}
+
+.autocomplete-option-category {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
