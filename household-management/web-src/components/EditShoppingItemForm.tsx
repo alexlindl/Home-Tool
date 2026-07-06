@@ -1,6 +1,7 @@
 /**
  * EditShoppingItemForm Component
  * Modal/dialog for editing an existing shopping item's name and category.
+ * Also provides a delete action.
  *
  * Requirements: 15.1, 15.2, 15.3, 15.4
  */
@@ -14,6 +15,7 @@ interface EditShoppingItemFormProps {
   item: ShoppingItem | null;
   onClose: () => void;
   onSaved: (item: ShoppingItem) => void;
+  onDeleted?: () => void;
 }
 
 export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
@@ -21,11 +23,13 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
   item,
   onClose,
   onSaved,
+  onDeleted,
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('produce');
   const [categories, setCategories] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (item) {
@@ -58,6 +62,22 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
       // Error handling
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!item) return;
+    setDeleting(true);
+    try {
+      await shoppingApi.deleteItem(item.id);
+      onClose();
+      if (onDeleted) {
+        onDeleted();
+      }
+    } catch {
+      // Error handling
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -102,13 +122,22 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
           </div>
 
           <div className="form-actions">
+            <button
+              type="button"
+              className="btn btn--secondary settings-btn-danger"
+              onClick={handleDelete}
+              disabled={deleting || submitting}
+            >
+              {deleting ? 'Deleting...' : '🗑️ Delete'}
+            </button>
+            <div style={{ flex: 1 }} />
             <button type="button" className="btn btn--secondary" onClick={onClose}>
               Cancel
             </button>
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={submitting || !name.trim()}
+              disabled={submitting || deleting || !name.trim()}
             >
               {submitting ? 'Saving...' : 'Save Changes'}
             </button>

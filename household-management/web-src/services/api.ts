@@ -328,6 +328,33 @@ export const adminApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Activity API
+// ---------------------------------------------------------------------------
+
+export interface ActivityEntry {
+  type: 'task_completed' | 'item_purchased';
+  title: string;
+  userId: string;
+  timestamp: string;
+}
+
+export const activityApi = {
+  /** Get activity log for the past N days */
+  async getActivity(days: number = 30): Promise<ActivityEntry[]> {
+    const response = await apiClient.get<{ entries: ActivityEntry[] }>('/activity', {
+      params: { days: String(days) },
+    });
+    return response.data.entries;
+  },
+
+  /** Clear all activity history */
+  async clearHistory(): Promise<{ message: string }> {
+    const response = await apiClient.delete<{ message: string }>('/activity');
+    return response.data;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Category API
 // ---------------------------------------------------------------------------
 

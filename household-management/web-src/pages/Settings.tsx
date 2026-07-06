@@ -15,21 +15,24 @@ import {
   templateApi,
   taskApi,
   shoppingApi,
+  activityApi,
   taskListApi,
   shoppingListApi,
   CategoryRecord,
 } from '@/services/api';
 import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
+import type { ActivityEntry } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardIntegration from '@/components/DashboardIntegration';
 
-type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme' | 'dashboard' | 'about';
+type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme' | 'dashboard' | 'activity' | 'about';
 
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: 'templates', label: 'Templates' },
   { id: 'categories', label: 'Categories' },
   { id: 'users', label: 'Users' },
   { id: 'lists', label: 'Lists' },
+  { id: 'activity', label: 'Activity' },
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'database', label: 'Database' },
   { id: 'backup', label: 'Backup' },
@@ -1332,7 +1335,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.7.10-alpha';
+const APP_VERSION = '0.7.11-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1393,6 +1396,138 @@ const AboutSection: React.FC = () => {
 
         <p style={{ marginTop: 8, color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>
           Manage household tasks and shopping lists directly from Home Assistant.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ===========================================================================
+// ActivityLog
+// ===========================================================================
+
+const ActivityLog: React.FC = () => {
+  const [entries, setEntries] = useState<ActivityEntry[]>([]);
+  const [users, setUsers] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [clearing, setClearing] = useState(false);
+  const [clearStatus, setClearStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [activityData, usersData] = await Promise.all([
+          activityApi.getActivity(30),
+          userApi.getAllUsers(),
+        ]);
+        setEntries(activityData);
+        const userMap: Record<string, string> = {};
+        for (const u of usersData) {
+          userMap[u.id] = u.name;
+        }
+        setUsers(userMap);
+        setError('');
+      } catch {
+        setError('Failed to load activity');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleClear = async () => {
+    const confirmed = window.confirm(
+      'This will permanently delete all task completion history. Shopping purchase records are not affected. Continue?'
+    );
+    if (!confirmed) return;
+
+    setClearing(true);
+    setClearStatus(null);
+    try {
+      await activityApi.clearHistory();
+      setClearStatus({ type: 'success', message: 'Task history cleared.' });
+      // Refresh the list
+      const activityData = await activityApi.getActivity(30);
+      setEntries(activityData);
+    } catch {
+      setClearStatus({ type: 'error', message: 'Failed to clear history.' });
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const formatTimestamp = (ts: string) => {
+    const date = new Date(ts);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  if (loading) return <p className="loading-state">Loading activity...</p>;
+
+  return (
+    <div className="settings-section">
+      <h2>Activity</h2>
+      <p style={{ marginBottom: 16, color: 'var(--color-text-secondary)' }}>
+        Recent activity across the household (last 30 days).
+      </p>
+
+      {error && <p className="error-state">{error}</p>}
+      {clearStatus && (
+        <p className={clearStatus.type === 'success' ? 'loading-state' : 'error-state'}>
+          {clearStatus.message}
+        </p>
+      )}
+
+      {entries.length === 0 && !error && (
+        <div className="empty-state">
+          <p>No activity in the last 30 days.</p>
+        </div>
+      )}
+
+      {entries.length > 0 && (
+        <div className="settings-list">
+          {entries.map((entry, idx) => (
+            <div key={`${entry.timestamp}-${idx}`} className="settings-list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+                <span style={{ fontSize: '1.1rem' }}>
+                  {entry.type === 'task_completed' ? '✅' : '🛒'}
+                </span>
+                <span className="settings-list-name" style={{ flex: 1 }}>
+                  {entry.title}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                  {formatTimestamp(entry.timestamp)}
+                </span>
+              </div>
+              <div style={{ paddingLeft: 28, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                {users[entry.userId] || 'Unknown user'} — {entry.type === 'task_completed' ? 'completed task' : 'purchased item'}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 24 }}>
+        <button
+          className="btn btn--secondary settings-btn-danger"
+          onClick={handleClear}
+          disabled={clearing}
+        >
+          {clearing ? 'Clearing...' : '🗑️ Clear Task History'}
+        </button>
+        <p style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+          Clears task completion history. Shopping purchase records are preserved.
         </p>
       </div>
     </div>
@@ -1474,6 +1609,7 @@ export const Settings: React.FC = () => {
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'templates' && <TemplateManagement />}
         {activeTab === 'lists' && <ListManagement />}
+        {activeTab === 'activity' && <ActivityLog />}
         {activeTab === 'dashboard' && <DashboardIntegrationTab />}
         {activeTab === 'backup' && <BackupRestore />}
         {activeTab === 'theme' && <ThemeSelector />}

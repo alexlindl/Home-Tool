@@ -2,6 +2,21 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.11-alpha] - 2026-07-06
+
+### Added
+- Activity tab in Settings: shows last 30 days of task completions + shopping purchases with who did what and when
+- GET /api/activity?days=30 endpoint (combined task + shopping activity feed)
+- DELETE /api/activity endpoint (clears task history)
+- "Clear Task History" button in Activity tab
+
+### Fixed
+- CRITICAL: Calendar icon invisible — `background:` shorthand in form input CSS was resetting `background-image` to none. Changed to `background-color:` in both light and dark mode rules.
+
+### Changed
+- Shopping item delete moved from ⋮ menu into the EditShoppingItemForm (matching task edit pattern)
+- ShoppingItemCard ⋮ menu now only has Edit and Move to list
+
 ## [0.7.10-alpha] - 2026-07-06
 
 ### Fixed

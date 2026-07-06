@@ -73,7 +73,7 @@ export const ShoppingList: React.FC = () => {
 
   const { items, loading, error, purchaseItem, refreshList } = useShopping({
     userName: currentUser?.name,
-    listId: selectedListId || undefined,
+    listId: selectedListId === 'all' ? undefined : selectedListId || undefined,
   });
   const [showForm, setShowForm] = useState(false);
 
@@ -162,15 +162,6 @@ export const ShoppingList: React.FC = () => {
     setMovingItem(item);
   };
 
-  const handleDelete = async (item: ShoppingItem) => {
-    try {
-      await shoppingApi.deleteItem(item.id);
-      refreshList();
-    } catch {
-      // Silently fail — the item may already be gone
-    }
-  };
-
   const handleMoveSelect = async (targetListId: string, targetListName: string) => {
     if (!movingItem) return;
     try {
@@ -204,6 +195,7 @@ export const ShoppingList: React.FC = () => {
         selectedId={selectedListId}
         onSelect={setSelectedListId}
         onRefresh={handleListRefresh}
+        showAllOption={true}
       />
 
       {loading && <div className="loading-state">Loading shopping list...</div>}
@@ -246,7 +238,6 @@ export const ShoppingList: React.FC = () => {
                       item={item}
                       onPurchase={handlePurchase}
                       onEdit={handleEdit}
-                      onDelete={handleDelete}
                       onMoveToList={handleMoveToList}
                       canMove={canMoveItem}
                     />
@@ -279,6 +270,7 @@ export const ShoppingList: React.FC = () => {
         item={editingItem}
         onClose={() => setEditingItem(null)}
         onSaved={handleEditSaved}
+        onDeleted={refreshList}
       />
 
       {/* Move to list modal */}

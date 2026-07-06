@@ -970,7 +970,7 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   font-size: 0.9375rem;
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   color: var(--color-text);
   transition: border-color 0.2s;
 }
@@ -1755,7 +1755,7 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 [data-theme="dark"] input[type="file"],
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
-  background: var(--color-bg);
+  background-color: var(--color-bg);
   color: var(--color-text);
   border-color: var(--color-border);
 }
