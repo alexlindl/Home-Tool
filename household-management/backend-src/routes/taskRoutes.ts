@@ -881,6 +881,18 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Extract enhanced recurrence fields from recurrencePattern if provided
+    if (updates.recurrencePattern && typeof updates.recurrencePattern === 'object') {
+      updates.recurrenceType = updates.recurrencePattern.type || null;
+      updates.recurrenceInterval = updates.recurrencePattern.interval || null;
+      updates.recurrenceDayOfWeek = updates.recurrencePattern.dayOfWeek || null;
+      updates.recurrenceOrdinalWeek = updates.recurrencePattern.ordinalWeek ?? null;
+      if (updates.recurrencePattern.endDate) {
+        updates.recurrenceEndDate = new Date(updates.recurrencePattern.endDate);
+      }
+      delete updates.recurrencePattern;
+    }
+
     const task = await taskService.updateTask(id as string, updates);
     res.status(200).json({ task });
   } catch (error) {

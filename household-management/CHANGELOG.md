@@ -2,6 +2,16 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.10-alpha] - 2026-07-06
+
+### Fixed
+- Editing task recurrence now saves correctly — PUT route extracts recurrencePattern fields (type, interval, dayOfWeek, ordinalWeek) into DB columns before passing to updateTask
+- Date picker icon: replaced filter-based approach with inline SVG background-image (white stroke in dark mode, gray in light mode) — the native picker indicator is now invisible but the SVG calendar icon is always visible
+- Shopping item ⋮ menu clipped by category container — removed overflow:hidden from .category-group so dropdown renders outside the card boundary
+
+### Changed
+- Date input uses appearance: none with custom SVG calendar icon for consistent cross-browser/webview rendering
+
 ## [0.7.9-alpha] - 2026-07-06
 
 ### Fixed
