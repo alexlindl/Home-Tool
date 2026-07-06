@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.5-alpha] - 2026-07-06
+
+### Fixed
+- Backend strict null check: legacy spawn branch changed from `else` to `else if (task.recurrencePattern)` to narrow type
+- Backend strict null check: wrapped dbCreateTask call with guard for possibly-uninitialized nextDbInput
+
 ## [0.7.4-alpha] - 2026-07-06
 
 ### Fixed

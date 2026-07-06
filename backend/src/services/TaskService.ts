@@ -406,8 +406,8 @@ export class TaskService {
       // by checking for recurrence_type via the task's dueDate and pattern
       const enhancedPattern = this.getEnhancedPatternFromTask(task);
 
-      let nextDueDate: Date;
-      let nextDbInput: CreateTaskInput;
+      let nextDueDate: Date | undefined;
+      let nextDbInput: CreateTaskInput | undefined;
 
       if (enhancedPattern) {
         // Use the RecurrenceEngine for enhanced patterns (Requirement 2.5)
@@ -427,7 +427,7 @@ export class TaskService {
           recurrenceDayOfWeek: enhancedPattern.dayOfWeek,
           recurrenceOrdinalWeek: enhancedPattern.ordinalWeek,
         };
-      } else {
+      } else if (task.recurrencePattern) {
         // Legacy fallback: use old calculation method
         nextDueDate = this.calculateNextDueDate(
           task.dueDate!,
@@ -448,7 +448,9 @@ export class TaskService {
         };
       }
 
-      await dbCreateTask(nextDbInput);
+      if (nextDbInput) {
+        await dbCreateTask(nextDbInput);
+      }
     }
   }
 
