@@ -31,6 +31,7 @@ export interface Task {
   isRecurring: boolean;
   recurrencePattern?: RecurrencePattern;
   recurrenceType?: string;           // Enhanced pattern type
+  recurrenceInterval?: number;       // Raw interval value from DB
   recurrenceDayOfWeek?: string;      // Day for day-based enhanced patterns
   recurrenceOrdinalWeek?: number;    // 1-5 for Nth occurrence patterns
   notificationLeadHours?: number;    // Per-task notification lead time override (hours)
@@ -99,6 +100,9 @@ export const taskFromRow = (row: TaskRow): Task => {
   // Add enhanced recurrence fields if present
   if (row.recurrence_type) {
     task.recurrenceType = row.recurrence_type;
+  }
+  if (row.recurrence_interval != null) {
+    task.recurrenceInterval = row.recurrence_interval;
   }
   if (row.recurrence_day_of_week) {
     task.recurrenceDayOfWeek = row.recurrence_day_of_week;

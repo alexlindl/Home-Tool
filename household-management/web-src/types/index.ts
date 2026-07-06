@@ -58,6 +58,8 @@ export interface Task {
   dueDate: string | null; // ISO date string, null for backlog tasks
   isRecurring: boolean;
   recurrencePattern?: RecurrencePattern;
+  recurrenceType?: string; // Enhanced pattern type (every_n_days, every_n_months, etc.)
+  recurrenceInterval?: number; // Raw interval value
   status: 'pending' | 'completed';
   completedAt?: string; // ISO date string
   completedBy?: string; // User ID

@@ -2,6 +2,14 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.9-alpha] - 2026-07-06
+
+### Fixed
+- CRITICAL: Recurring task interval was always reading as 1 — getEnhancedPatternFromTask now reads task.recurrenceInterval (raw DB value) instead of task.recurrencePattern?.interval (which is undefined for enhanced-only tasks)
+- Edit mode now correctly shows stored recurrence pattern (reads recurrenceType + recurrenceInterval from API response when legacy recurrencePattern is absent)
+- Added recurrenceInterval field to Task model interface and taskFromRow mapper
+- Added recurrenceType and recurrenceInterval to frontend Task type
+
 ## [0.7.8-alpha] - 2026-07-06
 
 ### Added

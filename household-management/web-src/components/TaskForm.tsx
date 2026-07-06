@@ -119,6 +119,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         } else {
           setRecurrencePattern({ type: 'every_n_days', interval: 1 });
         }
+      } else if (editTask.recurrenceType && editTask.recurrenceInterval) {
+        // Enhanced pattern: use recurrenceType and recurrenceInterval directly
+        setRecurrencePattern({
+          type: editTask.recurrenceType as 'every_n_days' | 'every_n_months' | 'every_n_years',
+          interval: editTask.recurrenceInterval,
+        });
       } else {
         setRecurrencePattern(null);
       }

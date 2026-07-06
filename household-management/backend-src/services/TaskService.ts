@@ -539,7 +539,7 @@ export class TaskService {
     if (task.recurrenceType) {
       return {
         type: task.recurrenceType as EnhancedRecurrencePattern['type'],
-        interval: task.recurrencePattern?.interval ?? 1,
+        interval: task.recurrenceInterval ?? task.recurrencePattern?.interval ?? 1,
         dayOfWeek: task.recurrenceDayOfWeek as EnhancedRecurrencePattern['dayOfWeek'],
         ordinalWeek: task.recurrenceOrdinalWeek,
         endDate: task.recurrencePattern?.endDate,
