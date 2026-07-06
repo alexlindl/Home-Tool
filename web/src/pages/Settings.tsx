@@ -1335,7 +1335,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.7.11-alpha';
+const APP_VERSION = '0.8.0-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1411,8 +1411,6 @@ const ActivityLog: React.FC = () => {
   const [users, setUsers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [clearing, setClearing] = useState(false);
-  const [clearStatus, setClearStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1436,27 +1434,6 @@ const ActivityLog: React.FC = () => {
     };
     fetchData();
   }, []);
-
-  const handleClear = async () => {
-    const confirmed = window.confirm(
-      'This will permanently delete all task completion history. Shopping purchase records are not affected. Continue?'
-    );
-    if (!confirmed) return;
-
-    setClearing(true);
-    setClearStatus(null);
-    try {
-      await activityApi.clearHistory();
-      setClearStatus({ type: 'success', message: 'Task history cleared.' });
-      // Refresh the list
-      const activityData = await activityApi.getActivity(30);
-      setEntries(activityData);
-    } catch {
-      setClearStatus({ type: 'error', message: 'Failed to clear history.' });
-    } finally {
-      setClearing(false);
-    }
-  };
 
   const formatTimestamp = (ts: string) => {
     const date = new Date(ts);
@@ -1483,11 +1460,6 @@ const ActivityLog: React.FC = () => {
       </p>
 
       {error && <p className="error-state">{error}</p>}
-      {clearStatus && (
-        <p className={clearStatus.type === 'success' ? 'loading-state' : 'error-state'}>
-          {clearStatus.message}
-        </p>
-      )}
 
       {entries.length === 0 && !error && (
         <div className="empty-state">
@@ -1517,19 +1489,6 @@ const ActivityLog: React.FC = () => {
           ))}
         </div>
       )}
-
-      <div style={{ marginTop: 24 }}>
-        <button
-          className="btn btn--secondary settings-btn-danger"
-          onClick={handleClear}
-          disabled={clearing}
-        >
-          {clearing ? 'Clearing...' : '🗑️ Clear Task History'}
-        </button>
-        <p style={{ marginTop: 8, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-          Clears task completion history. Shopping purchase records are preserved.
-        </p>
-      </div>
     </div>
   );
 };

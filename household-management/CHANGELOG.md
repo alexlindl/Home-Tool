@@ -2,6 +2,19 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.8.0-alpha] - 2026-07-06
+
+### Changed
+- Seed data expanded: task templates now include all 15 household chores from migration 004 plus 10 pet care tasks (dog + cat)
+- Seed data expanded: item templates now include all 64 UK supermarket items from migration 004 plus 10 pet items in "pet" category
+- Users array emptied in source — user accounts are now created at install time, not baked into the repository
+- Removed Americanisms from seed data (e.g. "Take Out Trash" → "Take Out Bins", "yard" → "garden")
+
+### Added
+- Pet task templates: Walk the Dog, Feed the Dog, Brush the Dog, Dog Flea Treatment, Dog Worming, Feed the Cat, Clean Litter Tray, Cat Flea Treatment, Cat Worming, Book Vet Appointment
+- Pet shopping item templates: Dog Food, Dog Treats, Poo Bags, Dog Chews, Cat Food, Cat Treats, Cat Litter, Litter Liners, Flea Treatment, Worming Tablets
+- Property-based tests for seed data correctness (7 properties validated)
+
 ## [0.7.11-alpha] - 2026-07-06
 
 ### Added
