@@ -83,7 +83,7 @@ export const TaskAutocomplete: React.FC<TaskAutocompleteProps> = ({
       setHighlightIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
     } else if (e.key === 'Enter' && highlightIndex >= 0) {
       e.preventDefault();
-      handleSelect(suggestions[highlightIndex]);
+      handleSelect(suggestions[highlightIndex]!);
     } else if (e.key === 'Escape') {
       setShowDropdown(false);
       setHighlightIndex(-1);
