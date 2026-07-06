@@ -70,14 +70,17 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<EnhancedRecurrencePattern | null>(null);
   const [notificationLeadHours, setNotificationLeadHours] = useState<number | null>(null);
+  const [wantNotification, setWantNotification] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const isEditMode = !!editTask;
 
   useEffect(() => {
     if (open) {
+      setFormError(null);
       userApi.getAllUsers().then(setUsers).catch(() => {});
     }
   }, [open]);
@@ -115,6 +118,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         setRecurrencePattern(null);
       }
       setNotificationLeadHours(editTask.notificationLeadHours ?? null);
+      setWantNotification((editTask.notificationLeadHours ?? 0) > 0);
     } else {
       resetForm();
     }
@@ -135,6 +139,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     if (!title.trim()) return;
 
     setSubmitting(true);
+    setFormError(null);
     try {
       // Resolve assignedTo: "anyone" sentinel → null for API
       const resolvedAssignedTo = assignedTo === 'anyone' ? null : assignedTo;
@@ -153,8 +158,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         if (isRecurring && recurrencePattern) {
           input.recurrencePattern = recurrencePattern;
         }
-        if (notificationLeadHours !== null) {
+        if (wantNotification && notificationLeadHours !== null) {
           input.notificationLeadHours = notificationLeadHours;
+        } else {
+          input.notificationLeadHours = 0;
         }
         const updatedTask = await taskApi.updateTask(editTask.id, input);
         onCreated(updatedTask);
@@ -171,7 +178,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         if (isRecurring && recurrencePattern) {
           input.recurrencePattern = recurrencePattern;
         }
-        if (notificationLeadHours !== null) {
+        if (wantNotification && notificationLeadHours !== null) {
           input.notificationLeadHours = notificationLeadHours;
         }
         if (saveAsTemplate) {
@@ -184,8 +191,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       }
       resetForm();
       onClose();
-    } catch {
-      // Error handling could show a toast
+    } catch (err: unknown) {
+      let message = 'Something went wrong. Please try again.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const resp = (err as { response?: { data?: { error?: string; message?: string } } }).response;
+        if (resp?.data?.error) message = resp.data.error;
+        else if (resp?.data?.message) message = resp.data.message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setFormError(message);
     } finally {
       setSubmitting(false);
     }
@@ -198,8 +213,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       await taskApi.deleteTask(editTask.id);
       onClose();
       if (onDeleted) onDeleted();
-    } catch {
-      // silently fail
+    } catch (err: unknown) {
+      let message = 'Failed to delete task. Please try again.';
+      if (err instanceof Error) message = err.message;
+      setFormError(message);
     }
   };
 
@@ -213,7 +230,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setIsRecurring(false);
     setRecurrencePattern(null);
     setNotificationLeadHours(null);
+    setWantNotification(false);
     setSaveAsTemplate(false);
+    setFormError(null);
   };
 
   if (!open) return null;
@@ -232,7 +251,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             <label htmlFor="task-title">Title *</label>
             <TaskAutocomplete
               value={title}
-              onChange={setTitle}
+              onChange={(val) => { setTitle(val); setFormError(null); }}
               placeholder="Enter task title"
             />
           </div>
@@ -329,21 +348,40 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             </div>
           )}
 
-          <div className="form-group">
-            <label htmlFor="task-notification-lead">Notify before (hours)</label>
-            <input
-              id="task-notification-lead"
-              type="number"
-              min={1}
-              value={notificationLeadHours ?? ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                setNotificationLeadHours(val === '' ? null : Math.max(1, parseInt(val) || 1));
-              }}
-              placeholder="Use default"
-              style={{ width: '120px' }}
-            />
+          <div className="form-group form-group--inline">
+            <label htmlFor="task-want-notification">
+              <input
+                id="task-want-notification"
+                type="checkbox"
+                checked={wantNotification}
+                onChange={(e) => {
+                  setWantNotification(e.target.checked);
+                  if (!e.target.checked) {
+                    setNotificationLeadHours(null);
+                  }
+                }}
+              />
+              Notify me before due date
+            </label>
           </div>
+
+          {wantNotification && (
+            <div className="form-group">
+              <label htmlFor="task-notification-lead">Notify before (hours)</label>
+              <input
+                id="task-notification-lead"
+                type="number"
+                min={1}
+                value={notificationLeadHours ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNotificationLeadHours(val === '' ? null : Math.max(1, parseInt(val) || 1));
+                }}
+                placeholder="e.g. 2"
+                style={{ width: '120px' }}
+              />
+            </div>
+          )}
 
           {!isEditMode && (
             <div className="form-group form-group--inline">
@@ -357,6 +395,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 Save as template
               </label>
             </div>
+          )}
+
+          {formError && (
+            <p className="form-error" style={{ color: 'var(--color-danger, #e74c3c)', fontSize: '0.85rem', margin: '0 0 8px 0' }}>
+              {formError}
+            </p>
           )}
 
           <div className="form-actions">

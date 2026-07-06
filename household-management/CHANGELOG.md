@@ -2,6 +2,18 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.4-alpha] - 2026-07-06
+
+### Fixed
+- Recurring task spawn: guard now checks both legacy (recurrencePattern) and enhanced (recurrenceType) paths — tasks created via the new RecurrenceSelector now correctly spawn next occurrences
+- Recurring task spawn: fixed null reference when accessing recurrencePattern.frequency on enhanced-only tasks (added optional chaining)
+- Date picker: added color-scheme: dark for dark mode so calendar icon and popup render correctly
+- TaskForm: API errors now display inline (was silently swallowing errors)
+- Task completion: verified optimistic removal from list works correctly
+
+### Added
+- "Notify me before due date" checkbox in TaskForm (hides hours input when unchecked)
+
 ## [0.7.3-alpha] - 2026-07-06
 
 ### Fixed

@@ -399,8 +399,9 @@ export class TaskService {
     );
 
     // Step 4 – generate next occurrence for recurring tasks (Requirement 4.5)
-    // Guard: if isRecurring but recurrencePattern is missing, skip spawning (Requirement 1.4)
-    if (task.isRecurring && task.recurrencePattern) {
+    // Guard: if isRecurring but no recurrence data at all, skip spawning (Requirement 1.4)
+    // Check both legacy (recurrencePattern) and enhanced (recurrenceType) paths
+    if (task.isRecurring && (task.recurrencePattern || task.recurrenceType)) {
       // Determine if this task has enhanced recurrence data
       // by checking for recurrence_type via the task's dueDate and pattern
       const enhancedPattern = this.getEnhancedPatternFromTask(task);
@@ -419,9 +420,9 @@ export class TaskService {
           dueDate: nextDueDate,
           isRecurring: true,
           listId: task.listId,  // Preserve listId on spawn (Requirements 1.2, 1.3)
-          recurrenceFrequency: task.recurrencePattern.frequency,
+          recurrenceFrequency: task.recurrencePattern?.frequency,
           recurrenceInterval: enhancedPattern.interval,
-          recurrenceEndDate: enhancedPattern.endDate ?? task.recurrencePattern.endDate,
+          recurrenceEndDate: enhancedPattern.endDate ?? task.recurrencePattern?.endDate,
           recurrenceType: enhancedPattern.type,
           recurrenceDayOfWeek: enhancedPattern.dayOfWeek,
           recurrenceOrdinalWeek: enhancedPattern.ordinalWeek,
