@@ -249,12 +249,16 @@ export const searchShoppingItems = async (
   limit: number = 8
 ): Promise<ShoppingSearchResult[]> => {
   const result = await query(
-    `SELECT name, category, COUNT(*) as usage_count
-     FROM shopping_items
-     WHERE name ILIKE '%' || $1 || '%'
-     GROUP BY name, category
-     ORDER BY usage_count DESC
-     LIMIT $2`,
+    `(SELECT name, category, COUNT(*) as usage_count
+      FROM shopping_items
+      WHERE name ILIKE '%' || $1 || '%'
+      GROUP BY name, category)
+    UNION ALL
+    (SELECT name, category, usage_count::bigint as usage_count
+      FROM item_templates
+      WHERE name ILIKE '%' || $1 || '%')
+    ORDER BY usage_count DESC
+    LIMIT $2`,
     [searchQuery, limit]
   );
 

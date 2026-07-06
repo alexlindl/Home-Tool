@@ -1005,6 +1005,18 @@ body {
   margin-top: 24px;
 }
 
+/* Ensure native date picker is visible (HA ingress iframe compatibility) */
+input[type="date"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  display: block;
+  cursor: pointer;
+  opacity: 1;
+}
+
 /* --- Quick Add Section --- */
 .quick-add-section {
   margin-bottom: 20px;

@@ -1,7 +1,7 @@
 {
   "name": "household-management-web",
   "private": true,
-  "version": "0.7.2-alpha",
+  "version": "0.7.3-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
