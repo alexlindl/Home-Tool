@@ -1,7 +1,7 @@
 {
   "name": "household-management-backend",
-  "version": "0.7.0-alpha",
-  "description": "Backend API for Household Management App",
+  "version": "0.7.1-alpha",
+  "description": "Backend API for Household Management App - build 2",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
