@@ -1,15 +1,15 @@
 /**
  * TaskForm Component
  * Modal/dialog for creating or editing a task with autocomplete title input,
- * native date picker, RecurrenceSelector, and notification lead time.
+ * native date picker, RecurrenceSelector, notification lead time, and list selector.
  *
  * @version 0.7.0-alpha
  * Requirements: 2.1, 2.2, 2.3, 2.4, 3.1, 3.9, 4.1, 4.2, 5.6, 6.1, 6.2
  */
 
 import React, { useState, useEffect } from 'react';
-import type { Task, CreateTaskInput, UpdateTaskInput, User, EnhancedRecurrencePattern } from '@/types';
-import { taskApi, userApi } from '@/services/api';
+import type { Task, CreateTaskInput, UpdateTaskInput, User, EnhancedRecurrencePattern, TaskList } from '@/types';
+import { taskApi, userApi, taskListApi } from '@/services/api';
 import { TaskAutocomplete } from '@/components/TaskAutocomplete';
 import { RecurrenceSelector } from '@/components/RecurrenceSelector';
 
@@ -64,15 +64,17 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState<string>('anyone');
-  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState<string | null>(() => new Date().toISOString().split('T')[0] ?? null);
   const [dueTime, setDueTime] = useState('09:00');
   const [timePreset, setTimePreset] = useState<TimePreset>('morning');
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrencePattern, setRecurrencePattern] = useState<EnhancedRecurrencePattern | null>(null);
+  const [isRecurring, setIsRecurring] = useState(true);
+  const [recurrencePattern, setRecurrencePattern] = useState<EnhancedRecurrencePattern | null>({ type: 'every_n_days', interval: 1 });
   const [notificationLeadHours, setNotificationLeadHours] = useState<number | null>(null);
   const [wantNotification, setWantNotification] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [lists, setLists] = useState<TaskList[]>([]);
+  const [selectedListId, setSelectedListId] = useState(listId || '');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -82,8 +84,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     if (open) {
       setFormError(null);
       userApi.getAllUsers().then(setUsers).catch(() => {});
+      taskListApi.getAll().then(setLists).catch(() => {});
+      // Reset selectedListId to prop value when form opens
+      setSelectedListId(listId || '');
     }
-  }, [open]);
+  }, [open, listId]);
 
   // Pre-populate fields when editing
   useEffect(() => {
@@ -184,8 +189,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         if (saveAsTemplate) {
           input.saveAsTemplate = true;
         }
-        // Pass listId as part of the request body (backend accepts it)
-        const payload = listId ? { ...input, listId } : input;
+        // Use selectedListId (from dropdown) instead of listId prop
+        const effectiveListId = selectedListId || listId;
+        const payload = effectiveListId ? { ...input, listId: effectiveListId } : input;
         const task = await taskApi.createTask(payload as CreateTaskInput & { createdBy: string });
         onCreated(task);
       }
@@ -224,11 +230,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setTitle('');
     setDescription('');
     setAssignedTo('anyone');
-    setDueDate(null);
+    setDueDate(new Date().toISOString().split('T')[0] ?? null);
     setDueTime('09:00');
     setTimePreset('morning');
-    setIsRecurring(false);
-    setRecurrencePattern(null);
+    setIsRecurring(true);
+    setRecurrencePattern({ type: 'every_n_days', interval: 1 });
     setNotificationLeadHours(null);
     setWantNotification(false);
     setSaveAsTemplate(false);
@@ -255,6 +261,24 @@ export const TaskForm: React.FC<TaskFormProps> = ({
               placeholder="Enter task title"
             />
           </div>
+
+          {!isEditMode && lists.length > 0 && (
+            <div className="form-group">
+              <label htmlFor="task-list">List</label>
+              <select
+                id="task-list"
+                value={selectedListId}
+                onChange={(e) => setSelectedListId(e.target.value)}
+              >
+                {!selectedListId && <option value="">Select a list...</option>}
+                {lists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="task-description">Description</label>

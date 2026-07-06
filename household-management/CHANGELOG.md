@@ -2,6 +2,14 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.6-alpha] - 2026-07-06
+
+### Fixed
+- Recurring task spawn wrapped in try/catch — spawn failures no longer crash the completion API (task completes successfully even if spawn fails)
+- Task completion now refreshes the list after success to show the newly spawned recurring task
+- Frontend handleComplete wrapped in try/catch with refreshTasks fallback on error
+- Fixed duplicate closing brace in TaskDashboard handleComplete
+
 ## [0.7.5-alpha] - 2026-07-06
 
 ### Fixed

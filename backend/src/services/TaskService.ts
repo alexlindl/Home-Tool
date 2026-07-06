@@ -402,54 +402,58 @@ export class TaskService {
     // Guard: if isRecurring but no recurrence data at all, skip spawning (Requirement 1.4)
     // Check both legacy (recurrencePattern) and enhanced (recurrenceType) paths
     if (task.isRecurring && (task.recurrencePattern || task.recurrenceType)) {
-      // Determine if this task has enhanced recurrence data
-      // by checking for recurrence_type via the task's dueDate and pattern
-      const enhancedPattern = this.getEnhancedPatternFromTask(task);
+      try {
+        // Determine if this task has enhanced recurrence data
+        const enhancedPattern = this.getEnhancedPatternFromTask(task);
 
-      let nextDueDate: Date | undefined;
-      let nextDbInput: CreateTaskInput | undefined;
+        let nextDueDate: Date | undefined;
+        let nextDbInput: CreateTaskInput | undefined;
 
-      if (enhancedPattern) {
-        // Use the RecurrenceEngine for enhanced patterns (Requirement 2.5)
-        nextDueDate = recurrenceCalculateNextDueDate(task.dueDate!, enhancedPattern);
-        nextDbInput = {
-          title: task.title,
-          description: task.description,
-          assignedTo: task.assignedTo,
-          createdBy: task.createdBy,
-          dueDate: nextDueDate,
-          isRecurring: true,
-          listId: task.listId,  // Preserve listId on spawn (Requirements 1.2, 1.3)
-          recurrenceFrequency: task.recurrencePattern?.frequency,
-          recurrenceInterval: enhancedPattern.interval,
-          recurrenceEndDate: enhancedPattern.endDate ?? task.recurrencePattern?.endDate,
-          recurrenceType: enhancedPattern.type,
-          recurrenceDayOfWeek: enhancedPattern.dayOfWeek,
-          recurrenceOrdinalWeek: enhancedPattern.ordinalWeek,
-        };
-      } else if (task.recurrencePattern) {
-        // Legacy fallback: use old calculation method
-        nextDueDate = this.calculateNextDueDate(
-          task.dueDate!,
-          task.recurrencePattern.frequency,
-          task.recurrencePattern.interval
-        );
-        nextDbInput = {
-          title: task.title,
-          description: task.description,
-          assignedTo: task.assignedTo,
-          createdBy: task.createdBy,
-          dueDate: nextDueDate,
-          isRecurring: true,
-          listId: task.listId,  // Preserve listId on spawn (Requirements 1.2, 1.3)
-          recurrenceFrequency: task.recurrencePattern.frequency,
-          recurrenceInterval: task.recurrencePattern.interval,
-          recurrenceEndDate: task.recurrencePattern.endDate,
-        };
-      }
+        if (enhancedPattern) {
+          // Use the RecurrenceEngine for enhanced patterns (Requirement 2.5)
+          nextDueDate = recurrenceCalculateNextDueDate(task.dueDate!, enhancedPattern);
+          nextDbInput = {
+            title: task.title,
+            description: task.description,
+            assignedTo: task.assignedTo,
+            createdBy: task.createdBy,
+            dueDate: nextDueDate,
+            isRecurring: true,
+            listId: task.listId,
+            recurrenceFrequency: task.recurrencePattern?.frequency,
+            recurrenceInterval: enhancedPattern.interval,
+            recurrenceEndDate: enhancedPattern.endDate ?? task.recurrencePattern?.endDate,
+            recurrenceType: enhancedPattern.type,
+            recurrenceDayOfWeek: enhancedPattern.dayOfWeek,
+            recurrenceOrdinalWeek: enhancedPattern.ordinalWeek,
+          };
+        } else if (task.recurrencePattern) {
+          // Legacy fallback: use old calculation method
+          nextDueDate = this.calculateNextDueDate(
+            task.dueDate!,
+            task.recurrencePattern.frequency,
+            task.recurrencePattern.interval
+          );
+          nextDbInput = {
+            title: task.title,
+            description: task.description,
+            assignedTo: task.assignedTo,
+            createdBy: task.createdBy,
+            dueDate: nextDueDate,
+            isRecurring: true,
+            listId: task.listId,
+            recurrenceFrequency: task.recurrencePattern.frequency,
+            recurrenceInterval: task.recurrencePattern.interval,
+            recurrenceEndDate: task.recurrencePattern.endDate,
+          };
+        }
 
-      if (nextDbInput) {
-        await dbCreateTask(nextDbInput);
+        if (nextDbInput) {
+          await dbCreateTask(nextDbInput);
+        }
+      } catch (spawnError) {
+        // Log but don't fail the completion — the task is already marked done
+        console.error('Failed to spawn next recurring task occurrence:', spawnError);
       }
     }
   }

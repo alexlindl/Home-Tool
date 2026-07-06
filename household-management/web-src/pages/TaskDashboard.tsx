@@ -173,16 +173,23 @@ export const TaskDashboard: React.FC = () => {
   const handleComplete = async (taskId: string) => {
     if (!currentUser) return;
     const task = tasks.find((t) => t.id === taskId);
-    await completeTask(taskId, currentUser.id);
-    if (task) {
-      showUndo({
-        itemName: task.title,
-        actionDescription: 'Task completed',
-        onUndo: async () => {
-          await taskApi.uncompleteTask(taskId);
-          refreshTasks();
-        },
-      });
+    try {
+      await completeTask(taskId, currentUser.id);
+      // Refresh to pick up newly spawned recurring task
+      await refreshTasks();
+      if (task) {
+        showUndo({
+          itemName: task.title,
+          actionDescription: 'Task completed',
+          onUndo: async () => {
+            await taskApi.uncompleteTask(taskId);
+            refreshTasks();
+          },
+        });
+      }
+    } catch {
+      // Refresh to get the true state from the server
+      await refreshTasks();
     }
   };
 

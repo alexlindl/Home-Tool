@@ -2,13 +2,14 @@
  * AddItemForm Component
  * Modal/dialog for adding a shopping item with template quick-add chips.
  * Uses ItemAutocomplete for name input with category auto-fill.
+ * Includes list selector to choose which shopping list to add to.
  *
  * Requirements: 7.1, 7.2, 7.3, 8.1, 9.1, 9.2
  */
 
 import React, { useState, useEffect } from 'react';
-import type { ShoppingItem, ItemTemplate, Category } from '@/types';
-import { shoppingApi, categoryApi } from '@/services/api';
+import type { ShoppingItem, ItemTemplate, Category, ShoppingList } from '@/types';
+import { shoppingApi, categoryApi, shoppingListApi } from '@/services/api';
 import { ItemAutocomplete } from '@/components/ItemAutocomplete';
 
 interface AddItemFormProps {
@@ -31,6 +32,8 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   const [category, setCategory] = useState<Category>('produce');
   const [categories, setCategories] = useState<string[]>([]);
   const [templates, setTemplates] = useState<ItemTemplate[]>([]);
+  const [lists, setLists] = useState<ShoppingList[]>([]);
+  const [selectedListId, setSelectedListId] = useState(listId || '');
   const [submitting, setSubmitting] = useState(false);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -46,8 +49,11 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
           setCategory(names[0]!);
         }
       }).catch(() => {});
+      shoppingListApi.getAll().then(setLists).catch(() => {});
+      // Reset selectedListId to prop value when form opens
+      setSelectedListId(listId || '');
     }
-  }, [open]);
+  }, [open, listId]);
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
@@ -90,11 +96,12 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
 
     setSubmitting(true);
     try {
+      const effectiveListId = selectedListId || listId;
       const item = await shoppingApi.addItem({
         name: name.trim(),
         category,
         addedBy: currentUserId,
-        listId,
+        listId: effectiveListId,
       });
       onAdded(item);
       setName('');
@@ -121,7 +128,8 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   const handleQuickAdd = async (template: ItemTemplate) => {
     setSubmitting(true);
     try {
-      const item = await shoppingApi.addItemFromTemplate(template.id, currentUserId, listId);
+      const effectiveListId = selectedListId || listId;
+      const item = await shoppingApi.addItemFromTemplate(template.id, currentUserId, effectiveListId);
       onAdded(item);
     } catch {
       // Error handling
@@ -210,6 +218,24 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
               </p>
             )}
           </div>
+
+          {lists.length > 0 && (
+            <div className="form-group">
+              <label htmlFor="item-list">List</label>
+              <select
+                id="item-list"
+                value={selectedListId}
+                onChange={(e) => setSelectedListId(e.target.value)}
+              >
+                {!selectedListId && <option value="">Select a list...</option>}
+                {lists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="form-actions">
             <button type="button" className="btn btn--secondary" onClick={onClose}>
