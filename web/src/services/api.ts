@@ -264,6 +264,15 @@ export const shoppingApi = {
     return response.data.results;
   },
 
+  /** Get recently purchased shopping items for history */
+  async getRecentPurchases(days?: number): Promise<ShoppingItem[]> {
+    const params: Record<string, string> = {};
+    if (days !== undefined) params.days = String(days);
+
+    const response = await apiClient.get<{ items: ShoppingItem[] }>('/shopping/purchases', { params });
+    return response.data.items;
+  },
+
   /** Get item templates */
   async getTemplates(): Promise<ItemTemplate[]> {
     const response = await apiClient.get<{ templates: ItemTemplate[] }>('/shopping/templates');

@@ -6,12 +6,13 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { taskApi, userApi } from '@/services/api';
+import { taskApi, userApi, shoppingApi } from '@/services/api';
 import { UserBadge } from '@/components/UserBadge';
-import type { TaskHistory as TaskHistoryType, User } from '@/types';
+import type { TaskHistory as TaskHistoryType, User, ShoppingItem } from '@/types';
 
 export const TaskHistory: React.FC = () => {
   const [history, setHistory] = useState<TaskHistoryType[]>([]);
+  const [purchases, setPurchases] = useState<ShoppingItem[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,12 +31,14 @@ export const TaskHistory: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const [data, userList] = await Promise.all([
+      const [data, userList, purchaseData] = await Promise.all([
         taskApi.getHistory(days),
         userApi.getAllUsers(),
+        shoppingApi.getRecentPurchases(days),
       ]);
       setHistory(data);
       setUsers(userList);
+      setPurchases(purchaseData);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch history';
       setError(message);
@@ -128,6 +131,34 @@ export const TaskHistory: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Recent Shopping Purchases Section */}
+      {purchases.length > 0 && (
+        <>
+          <h3 className="history-section-title">🛒 Recent Purchases</h3>
+          <div className="history-list">
+            {purchases.map((item) => (
+              <div key={item.id} className="history-card">
+                <div className="history-card-main">
+                  <span className="history-card-title">{item.name}</span>
+                  <span className="history-card-date">
+                    {item.purchasedAt ? formatDate(item.purchasedAt) : ''}
+                  </span>
+                </div>
+                <div className="history-card-details">
+                  <span className="history-card-assigned">
+                    Category: <span className={`category-badge category-badge--${item.category}`}>{item.category}</span>
+                  </span>
+                  <span className="history-card-completed">
+                    Purchased by: <UserBadge userName={item.purchasedBy ? (userNames[item.purchasedBy] || item.purchasedBy) : 'Unknown'} size="sm" />
+                    <span className="history-card-name">{item.purchasedBy ? (userNames[item.purchasedBy] || item.purchasedBy) : 'Unknown'}</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -1024,7 +1024,9 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+  filter: invert(1) brightness(2);
+  opacity: 1;
+  cursor: pointer;
 }
 
 /* --- Quick Add Section --- */
@@ -2253,4 +2255,13 @@ button.settings-btn-danger.btn--primary:hover:not(:disabled) {
 .autocomplete-option-category {
   font-size: 0.75rem;
   color: var(--color-text-secondary);
+}
+
+/* --- History Section Title --- */
+.history-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  color: var(--color-text);
 }

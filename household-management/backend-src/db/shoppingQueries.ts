@@ -224,6 +224,29 @@ export const moveShoppingItem = async (itemId: string, targetListId: string): Pr
   return shoppingItemFromRow(result.rows[0] as ShoppingItemRow);
 };
 
+/**
+ * Get recently purchased shopping items, ordered by purchased_at DESC.
+ * Used for the history page to show who purchased what.
+ * @param days Number of days to look back (default 30)
+ * @param limit Maximum number of results to return (default 30)
+ * @returns Promise<ShoppingItem[]> Array of purchased shopping items
+ */
+export const getRecentPurchases = async (
+  days: number = 30,
+  limit: number = 30
+): Promise<ShoppingItem[]> => {
+  const result = await query(
+    `SELECT * FROM shopping_items
+     WHERE is_purchased = TRUE
+       AND purchased_at >= CURRENT_TIMESTAMP - INTERVAL '1 day' * $1
+     ORDER BY purchased_at DESC
+     LIMIT $2`,
+    [days, limit]
+  );
+
+  return result.rows.map((row: ShoppingItemRow) => shoppingItemFromRow(row));
+};
+
 // ---------------------------------------------------------------------------
 // Shopping item search (autocomplete)
 // ---------------------------------------------------------------------------

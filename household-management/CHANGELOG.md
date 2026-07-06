@@ -2,6 +2,32 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.7.8-alpha] - 2026-07-06
+
+### Added
+- Shopping item delete option in ⋮ overflow menu
+- Recent Purchases section in History page (shows who purchased each item)
+- GET /api/shopping/purchases endpoint for recent purchase history
+- Task title autocomplete now includes template names via UNION query
+
+### Fixed
+- Shopping item ⋮ menu: Edit option now visible (menu renders when onEdit OR onDelete provided)
+- Dark mode calendar picker icon: boosted filter to invert(1) brightness(2) for visibility
+- Migration 009: task_history.assigned_to now nullable (fixes "Anyone" task completion)
+
+## [0.7.7-alpha] - 2026-07-06
+
+### Fixed
+- CRITICAL: task_history.assigned_to was NOT NULL — completing "Anyone" tasks crashed because NULL couldn't be inserted. Migration 009 drops the constraint.
+- This was the root cause of: tasks disappearing on completion, no history entry, no recurring spawn for "Anyone" tasks
+
+### Changed
+- Default recurring checkbox is now unchecked (was incorrectly defaulting to checked)
+- Recurrence pattern still defaults to "every 1 day" when recurring IS checked
+
+### Database
+- Migration 009: ALTER TABLE task_history ALTER COLUMN assigned_to DROP NOT NULL
+
 ## [0.7.6-alpha] - 2026-07-06
 
 ### Fixed

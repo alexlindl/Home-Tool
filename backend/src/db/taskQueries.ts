@@ -590,7 +590,7 @@ export const findTemplateByTitle = async (title: string): Promise<TaskTemplate |
 
 /**
  * Search distinct task titles by substring match (case-insensitive), ordered by frequency DESC
- * Used for task title autocomplete
+ * Used for task title autocomplete. Includes both existing task titles and template titles.
  * @param searchQuery Search string to match against task titles
  * @param limit Maximum number of results to return (default 8)
  * @returns Promise<string[]> Array of matching task titles ordered by usage frequency
@@ -600,13 +600,16 @@ export const searchTaskTitles = async (
   limit: number = 8
 ): Promise<string[]> => {
   const result = await query(
-    `SELECT title, COUNT(*) as freq FROM tasks
+    `(SELECT title, COUNT(*)::int as freq FROM tasks
      WHERE title ILIKE '%' || $1 || '%'
-     GROUP BY title
-     ORDER BY freq DESC
-     LIMIT $2`,
+     GROUP BY title)
+    UNION ALL
+    (SELECT title, usage_count::int as freq FROM task_templates
+     WHERE title ILIKE '%' || $1 || '%')
+    ORDER BY freq DESC
+    LIMIT $2`,
     [searchQuery, limit]
   );
 
-  return result.rows.map((row: { title: string; freq: string }) => row.title);
+  return result.rows.map((row: { title: string; freq: number }) => row.title);
 };

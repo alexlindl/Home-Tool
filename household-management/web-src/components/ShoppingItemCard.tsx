@@ -13,6 +13,7 @@ interface ShoppingItemCardProps {
   item: ShoppingItem;
   onPurchase: (itemId: string) => void;
   onEdit?: (item: ShoppingItem) => void;
+  onDelete?: (item: ShoppingItem) => void;
   onMoveToList?: (item: ShoppingItem) => void;
   /** Whether other lists exist (to show/hide move option) */
   canMove?: boolean;
@@ -22,6 +23,7 @@ export const ShoppingItemCard: React.FC<ShoppingItemCardProps> = ({
   item,
   onPurchase,
   onEdit,
+  onDelete,
   onMoveToList,
   canMove = false,
 }) => {
@@ -48,7 +50,7 @@ export const ShoppingItemCard: React.FC<ShoppingItemCardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
-  const showMenu = onEdit || (onMoveToList && canMove);
+  const showMenu = onEdit || onDelete || (onMoveToList && canMove);
 
   return (
     <div
@@ -106,6 +108,19 @@ export const ShoppingItemCard: React.FC<ShoppingItemCardProps> = ({
                   }}
                 >
                   📋 Move to list
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  className="shopping-item-menu-item"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    onDelete(item);
+                  }}
+                >
+                  🗑️ Delete
                 </button>
               )}
             </div>

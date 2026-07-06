@@ -67,7 +67,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [dueDate, setDueDate] = useState<string | null>(() => new Date().toISOString().split('T')[0] ?? null);
   const [dueTime, setDueTime] = useState('09:00');
   const [timePreset, setTimePreset] = useState<TimePreset>('morning');
-  const [isRecurring, setIsRecurring] = useState(true);
+  const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<EnhancedRecurrencePattern | null>({ type: 'every_n_days', interval: 1 });
   const [notificationLeadHours, setNotificationLeadHours] = useState<number | null>(null);
   const [wantNotification, setWantNotification] = useState(false);
@@ -233,7 +233,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setDueDate(new Date().toISOString().split('T')[0] ?? null);
     setDueTime('09:00');
     setTimePreset('morning');
-    setIsRecurring(true);
+    setIsRecurring(false);
     setRecurrencePattern({ type: 'every_n_days', interval: 1 });
     setNotificationLeadHours(null);
     setWantNotification(false);

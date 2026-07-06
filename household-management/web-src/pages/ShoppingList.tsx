@@ -162,6 +162,15 @@ export const ShoppingList: React.FC = () => {
     setMovingItem(item);
   };
 
+  const handleDelete = async (item: ShoppingItem) => {
+    try {
+      await shoppingApi.deleteItem(item.id);
+      refreshList();
+    } catch {
+      // Silently fail — the item may already be gone
+    }
+  };
+
   const handleMoveSelect = async (targetListId: string, targetListName: string) => {
     if (!movingItem) return;
     try {
@@ -237,6 +246,7 @@ export const ShoppingList: React.FC = () => {
                       item={item}
                       onPurchase={handlePurchase}
                       onEdit={handleEdit}
+                      onDelete={handleDelete}
                       onMoveToList={handleMoveToList}
                       canMove={canMoveItem}
                     />

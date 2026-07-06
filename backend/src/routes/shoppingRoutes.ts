@@ -7,7 +7,7 @@ import { Router, Request, Response } from 'express';
 import { shoppingService, ShoppingValidationError } from '../services/ShoppingService';
 import { Category } from '../models/Shopping';
 import { getAllCategories } from '../db/categoryQueries';
-import { searchItemTemplates, searchShoppingItems, getItemById, moveShoppingItem } from '../db/shoppingQueries';
+import { searchItemTemplates, searchShoppingItems, getItemById, moveShoppingItem, getRecentPurchases } from '../db/shoppingQueries';
 import { getShoppingListById } from '../db/listQueries';
 
 const router = Router();
@@ -369,6 +369,36 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to fetch shopping list',
+    });
+  }
+});
+
+/**
+ * GET /api/shopping/purchases
+ * Get recently purchased shopping items for history display
+ *
+ * Query parameters:
+ *   days  - Number of days to look back (optional, default 30)
+ *   limit - Maximum results to return (optional, default 30)
+ *
+ * Response: 200 OK
+ * { "items": [ ... ] }
+ */
+router.get('/purchases', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { days, limit } = req.query;
+
+    const parsedDays = days ? Math.min(Math.max(1, parseInt(days as string, 10) || 30), 365) : 30;
+    const parsedLimit = limit ? Math.min(Math.max(1, parseInt(limit as string, 10) || 30), 100) : 30;
+
+    const items = await getRecentPurchases(parsedDays, parsedLimit);
+
+    res.status(200).json({ items });
+  } catch (error) {
+    console.error('Error fetching recent purchases:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch recent purchases',
     });
   }
 });
