@@ -20,7 +20,7 @@ const router = Router();
  */
 router.get('/:key', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { key } = req.params;
+    const key = req.params.key as string;
 
     const value = await getAppSetting(key);
 
@@ -57,7 +57,7 @@ router.get('/:key', async (req: Request, res: Response): Promise<void> => {
  */
 router.put('/:key', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { key } = req.params;
+    const key = req.params.key as string;
     const { value } = req.body;
 
     if (value === undefined || value === null) {
