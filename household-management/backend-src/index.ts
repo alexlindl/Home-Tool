@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { testConnection } from './db/connection';
+import { logger } from './logger';
 import userRoutes from './routes/userRoutes';
 import taskRoutes from './routes/taskRoutes';
 import shoppingRoutes from './routes/shoppingRoutes';
@@ -39,7 +40,7 @@ app.use(sanitizeStrings);
 
 // Request logging middleware
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  logger.info(`${req.method} ${req.path}`);
   next();
 });
 
@@ -83,7 +84,7 @@ app.get('/health/db', async (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Household Management API',
-    version: '0.8.0-alpha',
+    version: '0.9.0-alpha',
     endpoints: {
       health: '/health',
       healthDb: '/health/db',
@@ -115,7 +116,7 @@ app.use((_req: Request, res: Response) => {
 
 // Error handling middleware
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Error:', err);
+  logger.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
   
   res.status(500).json({
     status: 'error',
@@ -132,10 +133,10 @@ initializeWebSocket(httpServer);
 
 // Start server
 const server = httpServer.listen(PORT, HOST, () => {
-  console.log(`Server running on http://${HOST}:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Health check: http://${HOST}:${PORT}/health`);
-  console.log(`Database health: http://${HOST}:${PORT}/health/db`);
+  logger.info(`Server running on http://${HOST}:${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`Health check: http://${HOST}:${PORT}/health`);
+  logger.info(`Database health: http://${HOST}:${PORT}/health/db`);
 
   // Start the reminder scheduler
   reminderService.startScheduler();
@@ -143,19 +144,19 @@ const server = httpServer.listen(PORT, HOST, () => {
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
+  logger.info('SIGTERM signal received: closing HTTP server');
   reminderService.stopScheduler();
   server.close(() => {
-    console.log('HTTP server closed');
+    logger.info('HTTP server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
+  logger.info('SIGINT signal received: closing HTTP server');
   reminderService.stopScheduler();
   server.close(() => {
-    console.log('HTTP server closed');
+    logger.info('HTTP server closed');
     process.exit(0);
   });
 });

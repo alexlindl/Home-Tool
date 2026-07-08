@@ -397,11 +397,9 @@ describe('ReminderService', () => {
       mockGetTasks.mockRejectedValue(new Error('DB connection failed'));
 
       service.startScheduler(1000);
-      jest.advanceTimersByTime(1000);
 
-      // Wait for async operations
-      await Promise.resolve();
-      await Promise.resolve();
+      // advanceTimersByTimeAsync properly flushes async timer callbacks
+      await jest.advanceTimersByTimeAsync(1000);
 
       expect(consoleSpy).toHaveBeenCalledWith(
         'Error in reminder scheduler:',

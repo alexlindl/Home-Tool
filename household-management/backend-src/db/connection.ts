@@ -1,5 +1,6 @@
 import { Pool, PoolConfig } from 'pg';
 import dotenv from 'dotenv';
+import { logger } from '../logger';
 
 dotenv.config();
 
@@ -16,12 +17,26 @@ const poolConfig: PoolConfig = {
   connectionTimeoutMillis: 2000,
 };
 
+/**
+ * Truncates string parameters exceeding 200 characters, appending '…' to indicate truncation.
+ * Non-string params are left unchanged.
+ */
+export function truncateParams(params?: any[]): any[] | undefined {
+  if (!params) return params;
+  return params.map((p) => {
+    if (typeof p === 'string' && p.length > 200) {
+      return p.slice(0, 200) + '\u2026';
+    }
+    return p;
+  });
+}
+
 // Create connection pool
 const pool = new Pool(poolConfig);
 
 // Handle pool errors - log but don't crash on transient connection issues
 pool.on('error', (err: Error) => {
-  console.error('Unexpected error on idle client:', err.message);
+  logger.error(`Unexpected error on idle client: ${err.message}`);
   // Don't exit — the pool will automatically reconnect on next query
 });
 
@@ -31,10 +46,10 @@ export const testConnection = async (): Promise<boolean> => {
     const client = await pool.connect();
     const result = await client.query('SELECT NOW()');
     client.release();
-    console.log('Database connection successful:', result.rows[0].now);
+    logger.info(`Database connection successful: ${result.rows[0].now}`);
     return true;
   } catch (error) {
-    console.error('Database connection failed:', error);
+    logger.error(`Database connection failed: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 };
@@ -45,10 +60,11 @@ export const query = async (text: string, params?: any[]) => {
   try {
     const result = await pool.query(text, params);
     const duration = Date.now() - start;
-    console.log('Executed query', { text, duration, rows: result.rowCount });
+    logger.debug(`Executed query text=${text} duration=${duration}ms rows=${result.rowCount} params=${JSON.stringify(truncateParams(params))}`);
     return result;
   } catch (error) {
-    console.error('Query error:', error);
+    const duration = Date.now() - start;
+    logger.error(`Query failed text=${text} error=${error instanceof Error ? error.message : String(error)} duration=${duration}ms`);
     throw error;
   }
 };
@@ -61,7 +77,7 @@ export const getClient = async () => {
 // Close the pool
 export const closePool = async () => {
   await pool.end();
-  console.log('Database pool closed');
+  logger.info('Database pool closed');
 };
 
 export default pool;

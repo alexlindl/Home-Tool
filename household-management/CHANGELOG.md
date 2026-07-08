@@ -2,6 +2,24 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.9.0-alpha] - 2026-07-07
+
+### Added
+- Centralized Logger module (`backend/src/logger.ts`) with level-based filtering (error/warn/info/debug)
+- LOG_LEVEL environment variable support — read once at startup, defaults to "info"
+- `log_level` option in HA add-on Configuration UI (error|warn|info|debug)
+- ISO-8601 timestamped log output with level labels (e.g. `2024-01-15T09:30:45.123Z [INFO] ...`)
+- Error-level messages route to stderr, all others to stdout
+- Parameter truncation for DB query logs (strings > 200 chars truncated with …)
+- 9 property-based tests validating logger correctness (14 test cases total)
+
+### Changed
+- DB query logging moved from `console.log` (always on) to `logger.debug` (suppressed at default info level)
+- Failed DB queries logged at `logger.error` with SQL text, error message, and duration
+- Request logging middleware uses `logger.info` instead of `console.log`
+- Server startup, shutdown, and pool error events use structured logger calls
+- Production log volume significantly reduced — routine DB queries no longer emitted at default level
+
 ## [0.8.0-alpha] - 2026-07-06
 
 ### Changed

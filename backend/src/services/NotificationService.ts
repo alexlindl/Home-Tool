@@ -140,9 +140,11 @@ export class NotificationService {
     if (this.sentNotifications.has(key)) return;
 
     const message = this.formatMessage(task, type);
+    const title = type === 'due' ? 'Task Reminder' : 'Task Overdue';
+    const notificationId = `hometool_${task.id}_${type}_${dateStr}`;
 
     try {
-      await this.callHaApi(user.haUsername!, message);
+      await this.callHaApi(user.haUsername!, message, title, notificationId);
       this.sentNotifications.add(key);
     } catch (error) {
       console.error(
@@ -178,45 +180,137 @@ export class NotificationService {
   }
 
   /**
-   * Call the Home Assistant supervisor API to send a notification.
-   * POST /api/services/notify/notify with 10s timeout.
+   * Call the Home Assistant supervisor API to send notifications.
+   * Makes two independent calls:
+   *   1. POST /api/services/persistent_notification/create (dashboard notification)
+   *   2. POST /api/services/notify/mobile_app_{haUsername} (mobile push)
+   *
+   * Each call has its own 10s timeout. Partial failures are handled gracefully:
+   * if at least one call succeeds, the notification is considered sent.
+   * Only throws if BOTH calls fail.
    *
    * Validates: Requirements 7.7, 7.8
    *
    * @param haUsername The HA username to notify
    * @param message The notification message body
+   * @param title The notification title (defaults to "Task Notification")
+   * @param notificationId The notification ID for dedup (defaults to "hometool_unknown")
    */
-  async callHaApi(haUsername: string, message: string): Promise<void> {
-    const url = `${NotificationService.HA_API_BASE}/api/services/notify/notify`;
+  async callHaApi(
+    haUsername: string,
+    message: string,
+    title: string = 'Task Notification',
+    notificationId: string = 'hometool_unknown',
+  ): Promise<void> {
     const token = process.env.SUPERVISOR_TOKEN || '';
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
+    // Call 1: Persistent notification (dashboard)
+    const persistentUrl = `${NotificationService.HA_API_BASE}/api/services/persistent_notification/create`;
+    const persistentBody = JSON.stringify({
+      message,
+      title,
+      notification_id: notificationId,
+    });
+
+    // Call 2: Mobile push notification
+    const mobileUrl = `${NotificationService.HA_API_BASE}/api/services/notify/mobile_app_${haUsername}`;
+    const mobileBody = JSON.stringify({
+      message,
+      title,
+    });
+
+    let persistentSuccess = false;
+    let mobileSuccess = false;
+    let persistentError: Error | null = null;
+    let mobileError: Error | null = null;
+
+    // Attempt persistent notification call with its own timeout
+    const persistentController = new AbortController();
+    const persistentTimeoutId = setTimeout(
+      () => persistentController.abort(),
       NotificationService.HA_TIMEOUT_MS,
     );
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(persistentUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          message,
-          target: haUsername,
-        }),
-        signal: controller.signal,
+        headers,
+        body: persistentBody,
+        signal: persistentController.signal,
       });
 
       if (!response.ok) {
-        throw new Error(
-          `HA API returned ${response.status}: ${response.statusText}`,
+        persistentError = new Error(
+          `HA API persistent_notification/create returned ${response.status}: ${response.statusText}`,
         );
+      } else {
+        persistentSuccess = true;
       }
+    } catch (error) {
+      persistentError =
+        error instanceof Error
+          ? error
+          : new Error(String(error));
     } finally {
-      clearTimeout(timeoutId);
+      clearTimeout(persistentTimeoutId);
+    }
+
+    // Attempt mobile push call with its own timeout
+    const mobileController = new AbortController();
+    const mobileTimeoutId = setTimeout(
+      () => mobileController.abort(),
+      NotificationService.HA_TIMEOUT_MS,
+    );
+
+    try {
+      const response = await fetch(mobileUrl, {
+        method: 'POST',
+        headers,
+        body: mobileBody,
+        signal: mobileController.signal,
+      });
+
+      if (!response.ok) {
+        mobileError = new Error(
+          `HA API notify/mobile_app_${haUsername} returned ${response.status}: ${response.statusText}`,
+        );
+      } else {
+        mobileSuccess = true;
+      }
+    } catch (error) {
+      mobileError =
+        error instanceof Error
+          ? error
+          : new Error(String(error));
+    } finally {
+      clearTimeout(mobileTimeoutId);
+    }
+
+    // Log specific failures
+    if (persistentError) {
+      console.error(
+        `HA persistent_notification/create failed for ${haUsername}:`,
+        persistentError.message,
+      );
+    }
+    if (mobileError) {
+      console.error(
+        `HA notify/mobile_app_${haUsername} failed:`,
+        mobileError.message,
+      );
+    }
+
+    // Only throw if BOTH calls failed
+    if (!persistentSuccess && !mobileSuccess) {
+      throw new Error(
+        `Both HA notification calls failed for ${haUsername}. ` +
+          `Persistent: ${persistentError?.message}. ` +
+          `Mobile: ${mobileError?.message}.`,
+      );
     }
   }
 

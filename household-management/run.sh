@@ -23,6 +23,10 @@ export DB_PASSWORD
 export DB_NAME
 export DB_USER
 
+# Read log level from HA add-on config
+LOG_LEVEL=$(bashio::config 'log_level')
+export LOG_LEVEL
+
 # ============================================================================
 # PostgreSQL Setup
 # ============================================================================

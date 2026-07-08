@@ -89,6 +89,7 @@ describe('Task Database Queries', () => {
           null,
           null,
           'default-list-1',
+          null,
         ]
       );
 
@@ -158,6 +159,7 @@ describe('Task Database Queries', () => {
           null,
           null,
           'default-list-1',
+          null,
         ]
       );
 
@@ -221,6 +223,7 @@ describe('Task Database Queries', () => {
           null,
           null,
           'default-list-1',
+          null,
         ]
       );
 
