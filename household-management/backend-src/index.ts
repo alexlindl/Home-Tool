@@ -84,7 +84,7 @@ app.get('/health/db', async (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Household Management API',
-    version: '0.9.2-alpha',
+    version: '0.9.3-alpha',
     endpoints: {
       health: '/health',
       healthDb: '/health/db',

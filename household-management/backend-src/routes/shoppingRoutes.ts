@@ -473,7 +473,7 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     try {
       await query(
         'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
-        ['shopping_item_edited', item.name, req.body.userId || null]
+        ['shopping_item_edited', item.name, req.body.userId || item.addedBy || null]
       );
     } catch { /* non-fatal */ }
 
@@ -528,7 +528,7 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
       try {
         await query(
           'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
-          ['shopping_item_removed', itemToDelete.name, req.body.userId || null]
+          ['shopping_item_removed', itemToDelete.name, req.body.userId || itemToDelete.addedBy || null]
         );
       } catch { /* non-fatal */ }
     }

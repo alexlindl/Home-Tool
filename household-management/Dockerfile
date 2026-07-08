@@ -32,7 +32,7 @@ LABEL \
     io.hass.name="Household Management" \
     io.hass.description="Manage household tasks and shopping lists" \
     io.hass.type="addon" \
-    io.hass.version="0.9.2-alpha"
+    io.hass.version="0.9.3-alpha"
 
 RUN apk add --no-cache \
     nodejs \

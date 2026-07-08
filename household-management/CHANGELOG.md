@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.9.3-alpha] - 2026-07-08
+
+### Fixed
+- Activity log entries for task edit/delete now show correct user (falls back to task creator)
+- Activity log entries for shopping edit/remove now show correct user (falls back to item adder)
+
 ## [0.9.2-alpha] - 2026-07-08
 
 ### Fixed

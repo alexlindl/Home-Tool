@@ -910,7 +910,7 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     try {
       await query(
         'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
-        ['task_edited', task.title, req.body.userId || null]
+        ['task_edited', task.title, req.body.userId || task.createdBy || null]
       );
     } catch { /* non-fatal */ }
 
@@ -968,7 +968,7 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
       try {
         await query(
           'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
-          ['task_deleted', taskToDelete.title, null]
+          ['task_deleted', taskToDelete.title, taskToDelete.createdBy || null]
         );
       } catch { /* non-fatal */ }
     }
