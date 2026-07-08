@@ -32,4 +32,4 @@ schema:
   db_password: str
   db_name: str
   db_user: str
-  log_level: match(^(error|warn|info|debug)$)
+  log_level: list(error|warn|info|debug)
