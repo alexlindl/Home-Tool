@@ -2,6 +2,30 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.0.0] - 2026-07-08
+
+### 🎉 First Stable Release
+
+Household Management is now feature-complete and stable for daily household use.
+
+### Features (since 0.8.0)
+- Notification timing: global default is now 0 hours (notify when due)
+- Zero lead hours fires 'due' notification on the same calendar day, 'overdue' after
+- Per-task notification lead hours accepts 0 (notify at due time)
+- Activity log tracking task and shopping item CRUD events (create, edit, delete)
+- Activity tab displays all event types with emoji icons and human-readable labels
+- Comprehensive property-based test suite (10 properties, 92 test assertions)
+
+### Fixed
+- NotificationService and ReminderService accept 0 as valid lead hours
+- Invalid/negative lead hours fall back to 0 instead of 24
+- Settings API accepts 0 as valid notification_lead_hours
+- Edit task form time off by 1 hour (UTC→local timezone conversion)
+- Activity log entries show correct user for edits and deletes
+
+### Changed
+- Dockerfile uses build.yaml + LABEL metadata (HA add-on best practice, base image 3.23)
+
 ## [0.9.3-alpha] - 2026-07-08
 
 ### Fixed
