@@ -59,6 +59,8 @@ export interface TaskInput {
   fromPrePopulatedTemplate?: boolean;
   /** Optional list ID to assign the task to */
   listId?: string;
+  /** Per-task notification lead time override (hours) */
+  notificationLeadHours?: number;
 }
 
 /**
@@ -205,6 +207,7 @@ export class TaskService {
       recurrenceDayOfWeek: input.recurrencePattern?.dayOfWeek,
       recurrenceOrdinalWeek: input.recurrencePattern?.ordinalWeek,
       listId: input.listId,
+      notificationLeadHours: input.notificationLeadHours,
     };
 
     // Persist the task

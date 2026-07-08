@@ -1335,7 +1335,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '0.9.0-alpha';
+const APP_VERSION = '0.9.1-alpha';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1406,6 +1406,34 @@ const AboutSection: React.FC = () => {
 // ActivityLog
 // ===========================================================================
 
+const getEventIcon = (type: ActivityEntry['type']): string => {
+  switch (type) {
+    case 'task_completed': return '✅';
+    case 'item_purchased': return '🛒';
+    case 'task_created': return '📝';
+    case 'task_edited': return '✏️';
+    case 'task_deleted': return '🗑️';
+    case 'shopping_item_added': return '➕';
+    case 'shopping_item_edited': return '✏️';
+    case 'shopping_item_removed': return '➖';
+    default: return '📋';
+  }
+};
+
+const getEventLabel = (type: ActivityEntry['type']): string => {
+  switch (type) {
+    case 'task_completed': return 'completed task';
+    case 'item_purchased': return 'purchased item';
+    case 'task_created': return 'created task';
+    case 'task_edited': return 'edited task';
+    case 'task_deleted': return 'deleted task';
+    case 'shopping_item_added': return 'added shopping item';
+    case 'shopping_item_edited': return 'edited shopping item';
+    case 'shopping_item_removed': return 'removed shopping item';
+    default: return 'performed action';
+  }
+};
+
 const ActivityLog: React.FC = () => {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [users, setUsers] = useState<Record<string, string>>({});
@@ -1473,7 +1501,7 @@ const ActivityLog: React.FC = () => {
             <div key={`${entry.timestamp}-${idx}`} className="settings-list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                 <span style={{ fontSize: '1.1rem' }}>
-                  {entry.type === 'task_completed' ? '✅' : '🛒'}
+                  {getEventIcon(entry.type)}
                 </span>
                 <span className="settings-list-name" style={{ flex: 1 }}>
                   {entry.title}
@@ -1483,7 +1511,7 @@ const ActivityLog: React.FC = () => {
                 </span>
               </div>
               <div style={{ paddingLeft: 28, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                {users[entry.userId] || 'Unknown user'} — {entry.type === 'task_completed' ? 'completed task' : 'purchased item'}
+                {users[entry.userId] || 'Unknown user'} — {getEventLabel(entry.type)}
               </div>
             </div>
           ))}

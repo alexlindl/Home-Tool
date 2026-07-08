@@ -46,7 +46,7 @@ export class NotificationService {
     const linkedUsers = await getLinkedUsers();
     if (linkedUsers.length === 0) return;
 
-    // Read global default lead time (falls back to 24 hours if not set or invalid)
+    // Read global default lead time (falls back to 0 hours if not set or invalid)
     const globalDefault = await this.getGlobalLeadHours();
 
     const filters: TaskFilters = { status: 'pending' };
@@ -61,12 +61,23 @@ export class NotificationService {
 
       let type: NotificationType | null = null;
 
-      if (now > task.dueDate) {
-        // Task is overdue (current time is past due date)
-        type = 'overdue';
-      } else if (now >= windowStart && now <= task.dueDate) {
-        // Task is within the notification lead time window
-        type = 'due';
+      if (effectiveLeadHours === 0) {
+        // Zero lead time: fire 'due' on the same calendar day, 'overdue' after
+        const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dueDay = new Date(task.dueDate.getFullYear(), task.dueDate.getMonth(), task.dueDate.getDate());
+
+        if (now >= task.dueDate && nowDay.getTime() === dueDay.getTime()) {
+          type = 'due';
+        } else if (now > task.dueDate) {
+          type = 'overdue';
+        }
+      } else {
+        // Positive lead time: existing window logic
+        if (now > task.dueDate) {
+          type = 'overdue';
+        } else if (now >= windowStart && now <= task.dueDate) {
+          type = 'due';
+        }
       }
 
       if (!type) continue;
@@ -85,18 +96,19 @@ export class NotificationService {
 
   /**
    * Read the global notification lead hours from app_settings.
-   * Falls back to 24 if the setting doesn't exist or is invalid.
+   * Falls back to 0 if the setting doesn't exist or is invalid.
+   * Accepts 0 as a valid value (meaning "notify when due").
    *
-   * @returns The global lead time in hours (positive number, default 24)
+   * @returns The global lead time in hours (non-negative number, default 0)
    */
   private async getGlobalLeadHours(): Promise<number> {
     try {
       const raw = await getAppSetting('notification_lead_hours');
-      if (raw === null) return 24;
+      if (raw === null) return 0;
       const parsed = parseInt(raw, 10);
-      return isNaN(parsed) || parsed <= 0 ? 24 : parsed;
+      return isNaN(parsed) || parsed < 0 ? 0 : parsed;
     } catch {
-      return 24;
+      return 0;
     }
   }
 

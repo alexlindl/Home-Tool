@@ -9,6 +9,7 @@ import { TaskValidationError } from '../services/TaskService';
 import { TaskFilters, getBacklogTasks, getTaskById, moveTask } from '../db/taskQueries';
 import { getTaskListById } from '../db/listQueries';
 import { EnhancedRecurrencePattern, DayOfWeek, RecurrencePatternType } from '../utils/recurrenceEngine';
+import { query } from '../db/connection';
 
 const router = Router();
 
@@ -58,6 +59,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       fromPrePopulatedTemplate,
       listId,
       saveAsTemplate,
+      notificationLeadHours,
     } = req.body;
 
     // Validate required fields
@@ -205,7 +207,16 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       fromPrePopulatedTemplate,
       listId,
       saveAsTemplate: saveAsTemplate === true ? true : undefined,
+      notificationLeadHours: notificationLeadHours !== undefined ? Number(notificationLeadHours) : undefined,
     });
+
+    // Log activity for task creation
+    try {
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['task_created', task.title, createdBy]
+      );
+    } catch { /* non-fatal */ }
 
     res.status(201).json({ task });
   } catch (error) {
@@ -894,6 +905,15 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     const task = await taskService.updateTask(id as string, updates);
+
+    // Log activity for task edit
+    try {
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['task_edited', task.title, req.body.userId || null]
+      );
+    } catch { /* non-fatal */ }
+
     res.status(200).json({ task });
   } catch (error) {
     console.error('Error updating task:', error);
@@ -938,7 +958,20 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
+    // Fetch task title before deletion for activity log
+    const taskToDelete = await getTaskById(id as string);
+
     await taskService.deleteTask(id as string);
+
+    // Log activity for task deletion
+    if (taskToDelete) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['task_deleted', taskToDelete.title, null]
+        );
+      } catch { /* non-fatal */ }
+    }
 
     res.status(200).json({ message: 'Task deleted successfully' });
   } catch (error) {

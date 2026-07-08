@@ -49,7 +49,7 @@ export class ReminderService {
   async checkReminders(): Promise<void> {
     const now = new Date();
 
-    // Read global default lead time (falls back to 24 hours if not set or invalid)
+    // Read global default lead time (falls back to 0 hours if not set or invalid)
     const globalDefault = await this.getGlobalLeadHours();
 
     // Query all pending tasks (we need per-task lead time, so filter in code)
@@ -63,27 +63,39 @@ export class ReminderService {
       const leadTimeMs = effectiveLeadHours * 60 * 60 * 1000;
       const windowStart = new Date(task.dueDate.getTime() - leadTimeMs);
 
-      // Check if current time is within [dueDate - effectiveLeadHours, dueDate]
-      if (now >= windowStart && now <= task.dueDate) {
-        await this.sendReminder(task, 'upcoming');
+      // Check if current time is within reminder window
+      if (effectiveLeadHours === 0) {
+        // Zero lead time: fire 'upcoming' when now >= dueDate and same calendar day
+        const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dueDay = new Date(task.dueDate.getFullYear(), task.dueDate.getMonth(), task.dueDate.getDate());
+
+        if (now >= task.dueDate && nowDay.getTime() === dueDay.getTime()) {
+          await this.sendReminder(task, 'upcoming');
+        }
+      } else {
+        // Positive lead time: existing window logic
+        if (now >= windowStart && now <= task.dueDate) {
+          await this.sendReminder(task, 'upcoming');
+        }
       }
     }
   }
 
   /**
    * Read the global notification lead hours from app_settings.
-   * Falls back to 24 if the setting doesn't exist or is invalid.
+   * Falls back to 0 if the setting doesn't exist or is invalid.
+   * Accepts 0 as a valid value (meaning "notify when due").
    *
-   * @returns The global lead time in hours (positive number, default 24)
+   * @returns The global lead time in hours (non-negative number, default 0)
    */
   private async getGlobalLeadHours(): Promise<number> {
     try {
       const raw = await getAppSetting('notification_lead_hours');
-      if (raw === null) return 24;
+      if (raw === null) return 0;
       const parsed = parseInt(raw, 10);
-      return isNaN(parsed) || parsed <= 0 ? 24 : parsed;
+      return isNaN(parsed) || parsed < 0 ? 0 : parsed;
     } catch {
-      return 24;
+      return 0;
     }
   }
 

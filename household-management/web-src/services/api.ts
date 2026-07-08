@@ -332,7 +332,7 @@ export const adminApi = {
 // ---------------------------------------------------------------------------
 
 export interface ActivityEntry {
-  type: 'task_completed' | 'item_purchased';
+  type: 'task_completed' | 'item_purchased' | 'task_created' | 'task_edited' | 'task_deleted' | 'shopping_item_added' | 'shopping_item_edited' | 'shopping_item_removed';
   title: string;
   userId: string;
   timestamp: string;

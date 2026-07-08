@@ -167,30 +167,30 @@ describe('ReminderService', () => {
       }));
     });
 
-    it('should fall back to 24h when app_settings returns invalid value', async () => {
+    it('should fall back to 0h when app_settings returns invalid value', async () => {
       jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
       mockGetAppSetting.mockResolvedValue('invalid');
 
-      // Task due in 4 hours (within fallback 24h window)
+      // Task due in 4 hours — with 0h fallback, window is [dueDate, dueDate] so no reminder
       const task = createMockTask({ id: 'task-1', dueDate: new Date('2024-06-01T12:00:00Z') });
       mockGetTasks.mockResolvedValue([task]);
 
       await service.checkReminders();
 
-      expect(mockIO.emit).toHaveBeenCalledTimes(1);
+      expect(mockIO.emit).not.toHaveBeenCalled();
     });
 
-    it('should fall back to 24h when getAppSetting throws', async () => {
+    it('should fall back to 0h when getAppSetting throws', async () => {
       jest.setSystemTime(new Date('2024-06-01T08:00:00Z'));
       mockGetAppSetting.mockRejectedValue(new Error('DB error'));
 
-      // Task due in 4 hours (within fallback 24h window)
+      // Task due in 4 hours — with 0h fallback, window is [dueDate, dueDate] so no reminder
       const task = createMockTask({ id: 'task-1', dueDate: new Date('2024-06-01T12:00:00Z') });
       mockGetTasks.mockResolvedValue([task]);
 
       await service.checkReminders();
 
-      expect(mockIO.emit).toHaveBeenCalledTimes(1);
+      expect(mockIO.emit).not.toHaveBeenCalled();
     });
 
     it('should not send reminders when no tasks are due', async () => {

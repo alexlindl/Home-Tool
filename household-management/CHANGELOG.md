@@ -2,6 +2,22 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.9.1-alpha] - 2026-07-08
+
+### Fixed
+- Global notification lead time default changed from 24 to 0 hours (notify when due)
+- NotificationService and ReminderService now accept 0 as a valid lead hours value
+- Zero lead hours timing logic: fires 'due' on same calendar day, 'overdue' after
+- Invalid/negative lead hours values now fall back to 0 instead of 24
+
+### Added
+- Activity log table (`activity_log`) tracking task and shopping item CRUD events
+- Task create/edit/delete events logged to activity_log
+- Shopping item add/edit/remove events logged to activity_log
+- Activity route now queries activity_log alongside task_history and shopping purchases
+- Frontend ActivityLog renders 6 new event types with emojis and labels
+- 10 property-based tests validating notification timing and activity response invariants
+
 ## [0.9.0-alpha] - 2026-07-07
 
 ### Added

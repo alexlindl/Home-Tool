@@ -9,6 +9,7 @@ import { Category } from '../models/Shopping';
 import { getAllCategories } from '../db/categoryQueries';
 import { searchItemTemplates, searchShoppingItems, getItemById, moveShoppingItem, getRecentPurchases } from '../db/shoppingQueries';
 import { getShoppingListById } from '../db/listQueries';
+import { query } from '../db/connection';
 
 const router = Router();
 
@@ -69,6 +70,14 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         listId,
       });
     }
+
+    // Log activity for the new shopping item
+    try {
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['shopping_item_added', item.name, addedBy]
+      );
+    } catch { /* non-fatal */ }
 
     res.status(201).json({ item });
   } catch (error) {
@@ -459,6 +468,15 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     const { name, category } = req.body;
 
     const item = await shoppingService.updateItem(id, { name, category });
+
+    // Log activity for the edited shopping item
+    try {
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['shopping_item_edited', item.name, req.body.userId || null]
+      );
+    } catch { /* non-fatal */ }
+
     res.status(200).json({ item });
   } catch (error) {
     console.error('Error updating shopping item:', error);
@@ -500,7 +518,21 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
 
+    // Fetch item name before deletion for activity logging
+    const itemToDelete = await getItemById(id);
+
     await shoppingService.deleteItem(id);
+
+    // Log activity for the removed shopping item
+    if (itemToDelete) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['shopping_item_removed', itemToDelete.name, req.body.userId || null]
+        );
+      } catch { /* non-fatal */ }
+    }
+
     res.status(200).json({ message: 'Shopping item deleted successfully' });
   } catch (error) {
     console.error('Error deleting shopping item:', error);

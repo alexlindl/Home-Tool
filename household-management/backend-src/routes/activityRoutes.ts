@@ -9,7 +9,7 @@ import { query } from '../db/connection';
 const router = Router();
 
 interface ActivityEntry {
-  type: 'task_completed' | 'item_purchased';
+  type: 'task_completed' | 'item_purchased' | 'task_created' | 'task_edited' | 'task_deleted' | 'shopping_item_added' | 'shopping_item_edited' | 'shopping_item_removed';
   title: string;
   userId: string;
   timestamp: string;
@@ -69,6 +69,26 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     for (const row of shoppingResult.rows) {
       entries.push({
         type: 'item_purchased',
+        title: row.title,
+        userId: row.user_id,
+        timestamp: row.timestamp instanceof Date ? row.timestamp.toISOString() : String(row.timestamp),
+      });
+    }
+
+    // Query activity_log entries
+    const activityLogResult = await query(
+      `SELECT event_type AS type, item_title AS title, user_id, created_at AS timestamp
+       FROM activity_log
+       WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '1 day' * $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [parsedDays]
+    );
+
+    // Map activity_log rows into entries
+    for (const row of activityLogResult.rows) {
+      entries.push({
+        type: row.type,
         title: row.title,
         userId: row.user_id,
         timestamp: row.timestamp instanceof Date ? row.timestamp.toISOString() : String(row.timestamp),
