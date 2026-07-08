@@ -97,10 +97,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       setDescription(editTask.description || '');
       setAssignedTo(editTask.assignedTo ?? 'anyone');
       if (editTask.dueDate) {
-        const datePart = editTask.dueDate.split('T')[0] ?? '';
+        const d = new Date(editTask.dueDate);
+        const datePart = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         setDueDate(datePart);
-        // Extract time from ISO string (e.g. "2024-01-15T15:00:00" → "15:00")
-        const timePart = editTask.dueDate.split('T')[1]?.slice(0, 5) || '09:00';
+        const timePart = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         setDueTime(timePart);
         setTimePreset(getPresetFromTime(timePart));
       } else {
@@ -129,7 +129,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         setRecurrencePattern(null);
       }
       setNotificationLeadHours(editTask.notificationLeadHours ?? null);
-      setWantNotification((editTask.notificationLeadHours ?? 0) > 0);
+      setWantNotification(editTask.notificationLeadHours != null && editTask.notificationLeadHours >= 0);
     } else {
       resetForm();
     }
@@ -388,6 +388,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   setWantNotification(e.target.checked);
                   if (!e.target.checked) {
                     setNotificationLeadHours(null);
+                  } else if (notificationLeadHours === null) {
+                    setNotificationLeadHours(0);
                   }
                 }}
               />
@@ -401,13 +403,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
               <input
                 id="task-notification-lead"
                 type="number"
-                min={1}
+                min={0}
                 value={notificationLeadHours ?? ''}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setNotificationLeadHours(val === '' ? null : Math.max(1, parseInt(val) || 1));
+                  setNotificationLeadHours(val === '' ? null : Math.max(0, parseInt(val) || 0));
                 }}
-                placeholder="e.g. 2"
+                placeholder="0 = when due"
                 style={{ width: '120px' }}
               />
             </div>

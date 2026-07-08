@@ -2,6 +2,18 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [0.9.2-alpha] - 2026-07-08
+
+### Fixed
+- Per-task notification lead hours input now accepts 0 (notify when due)
+- Settings API validation accepts 0 as valid notification_lead_hours value
+- Default notification lead hours set to 0 when checkbox is enabled
+- Edit task form no longer shows time 1 hour behind (UTC→local timezone fix)
+
+### Changed
+- Dockerfile migrated to use build.yaml pattern matching official HA add-ons (base image 3.23)
+- Added LABEL metadata to Dockerfile for HA add-on identification
+
 ## [0.9.1-alpha] - 2026-07-08
 
 ### Fixed

@@ -1,7 +1,7 @@
 # Household Management Add-on for Home Assistant
 # Self-contained build: all source files are within this directory
 
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base:3.19
+ARG BUILD_FROM
 FROM node:18-alpine AS backend-builder
 
 WORKDIR /build/backend
@@ -25,7 +25,14 @@ COPY web-index.html ./index.html
 COPY web-vite.config.ts ./vite.config.ts
 RUN npm run build
 
-FROM ${BUILD_FROM}
+FROM $BUILD_FROM
+
+# Labels for HA add-on metadata
+LABEL \
+    io.hass.name="Household Management" \
+    io.hass.description="Manage household tasks and shopping lists" \
+    io.hass.type="addon" \
+    io.hass.version="0.9.2-alpha"
 
 RUN apk add --no-cache \
     nodejs \

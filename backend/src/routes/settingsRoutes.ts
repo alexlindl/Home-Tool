@@ -68,13 +68,13 @@ router.put('/:key', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Validate notification_lead_hours specifically: must be a positive integer
+    // Validate notification_lead_hours specifically: must be a non-negative integer
     if (key === 'notification_lead_hours') {
       const num = Number(value);
-      if (!Number.isInteger(num) || num <= 0) {
+      if (!Number.isInteger(num) || num < 0) {
         res.status(400).json({
           status: 'error',
-          message: 'notification_lead_hours must be a positive integer',
+          message: 'notification_lead_hours must be a non-negative integer',
         });
         return;
       }
