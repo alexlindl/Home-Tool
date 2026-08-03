@@ -15,7 +15,7 @@ import { AddItemForm } from '@/components/AddItemForm';
 import { EditShoppingItemForm } from '@/components/EditShoppingItemForm';
 import { ListSelector } from '@/components/ListSelector';
 import { MoveToListModal } from '@/components/MoveToListModal';
-import { shoppingListApi, shoppingApi, userApi } from '@/services/api';
+import { shoppingListApi, shoppingApi, userApi, userSettingsApi } from '@/services/api';
 import { useUndoSnackbar } from '@/contexts/UndoSnackbarContext';
 import type { ShoppingItem, ShoppingList as ShoppingListType, Category, User } from '@/types';
 
@@ -70,14 +70,28 @@ export const ShoppingList: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
-  // Load lists and set default (skip default if listId came from deep link)
+  // Load lists and set default from user preference (skip default if listId came from deep link)
   useEffect(() => {
-    shoppingListApi.getAll().then((lists: ShoppingListType[]) => {
+    shoppingListApi.getAll().then(async (lists: ShoppingListType[]) => {
       setShoppingLists(lists);
-      if (!listIdParam) {
-        const defaultList = lists.find((l) => l.isDefault);
-        if (defaultList && !selectedListId) {
-          setSelectedListId(defaultList.id);
+      if (!listIdParam && !selectedListId) {
+        if (currentUser) {
+          try {
+            const savedListId = await userSettingsApi.get(currentUser.id, 'default_shopping_list_id');
+            if (savedListId !== null) {
+              setSelectedListId(savedListId || 'all');
+            } else {
+              // No preference saved — fall back to isDefault list
+              const defaultList = lists.find((l) => l.isDefault);
+              if (defaultList) setSelectedListId(defaultList.id);
+            }
+          } catch {
+            const defaultList = lists.find((l) => l.isDefault);
+            if (defaultList) setSelectedListId(defaultList.id);
+          }
+        } else {
+          const defaultList = lists.find((l) => l.isDefault);
+          if (defaultList) setSelectedListId(defaultList.id);
         }
       }
       setListsLoaded(true);

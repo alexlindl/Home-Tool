@@ -5,7 +5,7 @@
  * Requirements: 1.2, 12.1, 12.3, 12.4, 16.1, 17.1, 18.1, 19.1, 20.1
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth, AuthProvider } from '@/hooks/useAuth';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -17,13 +17,11 @@ import { TaskDashboard } from '@/pages/TaskDashboard';
 import { ShoppingList } from '@/pages/ShoppingList';
 import { TaskHistory } from '@/pages/TaskHistory';
 import { Settings } from '@/pages/Settings';
-import { userSettingsApi, taskListApi, shoppingListApi } from '@/services/api';
 
 function AppContent() {
   const { currentUser, isAuthenticated, loading, logout } = useAuth();
   const { isConnected } = useWebSocket({ userName: currentUser?.name });
   const navigate = useNavigate();
-  const defaultListApplied = useRef(false);
 
   // Detect if running inside HA (either via ingress path or embedded in an iframe)
   const isInIngress = window.location.pathname.includes('/api/hassio_ingress/') || window.self !== window.top;
@@ -58,45 +56,6 @@ function AppContent() {
       document.documentElement.setAttribute('data-scheme', savedScheme);
     }
   }, []);
-
-  // Navigate to user's default list preference on app load (once after auth)
-  useEffect(() => {
-    if (!isAuthenticated || !currentUser || defaultListApplied.current) return;
-    defaultListApplied.current = true;
-
-    const applyDefaultList = async () => {
-      try {
-        const listId = await userSettingsApi.get(currentUser.id, 'default_list_id');
-        if (!listId) return; // No preference — stay on "All Lists"
-
-        // Check if the list still exists (could be a task list or shopping list)
-        const [taskLists, shoppingLists] = await Promise.all([
-          taskListApi.getAll(),
-          shoppingListApi.getAll(),
-        ]);
-
-        const foundTaskList = taskLists.find((l) => l.id === listId);
-        const foundShoppingList = shoppingLists.find((l) => l.id === listId);
-
-        if (foundTaskList) {
-          navigate(`/tasks?listId=${listId}`, { replace: true });
-        } else if (foundShoppingList) {
-          navigate(`/shopping?listId=${listId}`, { replace: true });
-        } else {
-          // List was deleted — clear stale preference, fall back to "All Lists"
-          try {
-            await userSettingsApi.put(currentUser.id, 'default_list_id', '');
-          } catch {
-            // Non-fatal: preference clear failed, still show All Lists
-          }
-        }
-      } catch {
-        // Fetch failed — stay on default "All Lists" view
-      }
-    };
-
-    applyDefaultList();
-  }, [isAuthenticated, currentUser, navigate]);
 
   if (loading) {
     return (

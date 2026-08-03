@@ -335,10 +335,11 @@ const DefaultListPreference: React.FC = () => {
   const { currentUser } = useAuth();
   const [taskLists, setTaskLists] = useState<TaskList[]>([]);
   const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
-  const [selectedListId, setSelectedListId] = useState<string>('');
-  const [previousListId, setPreviousListId] = useState<string>('');
+  const [defaultTaskListId, setDefaultTaskListId] = useState<string>('');
+  const [defaultTaskFilter, setDefaultTaskFilter] = useState<string>('my');
+  const [defaultShoppingListId, setDefaultShoppingListId] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState('');
 
@@ -353,13 +354,17 @@ const DefaultListPreference: React.FC = () => {
         setTaskLists(tl);
         setShoppingLists(sl);
 
-        // Load current setting
-        const value = await userSettingsApi.get(currentUser.id, 'default_list_id');
-        const listId = value ?? '';
-        setSelectedListId(listId);
-        setPreviousListId(listId);
+        // Load current settings
+        const [taskListVal, taskFilterVal, shoppingListVal] = await Promise.all([
+          userSettingsApi.get(currentUser.id, 'default_task_list_id'),
+          userSettingsApi.get(currentUser.id, 'default_task_filter'),
+          userSettingsApi.get(currentUser.id, 'default_shopping_list_id'),
+        ]);
+        setDefaultTaskListId(taskListVal ?? '');
+        setDefaultTaskFilter(taskFilterVal ?? 'my');
+        setDefaultShoppingListId(shoppingListVal ?? '');
       } catch {
-        // ignore fetch errors — default to "All Lists"
+        // ignore fetch errors — defaults remain
       } finally {
         setLoading(false);
       }
@@ -367,24 +372,20 @@ const DefaultListPreference: React.FC = () => {
     fetchData();
   }, [currentUser]);
 
-  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleSave = async (key: string, value: string, setter: (v: string) => void) => {
     if (!currentUser) return;
-    const newValue = e.target.value;
-    setSelectedListId(newValue);
     setError('');
     setConfirmation('');
-    setSaving(true);
-
+    setSaving(key);
     try {
-      await userSettingsApi.put(currentUser.id, 'default_list_id', newValue);
-      setPreviousListId(newValue);
+      await userSettingsApi.put(currentUser.id, key, value);
+      setter(value);
       setConfirmation('Saved!');
       setTimeout(() => setConfirmation(''), 2000);
     } catch {
       setError('Failed to save preference');
-      setSelectedListId(previousListId);
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
 
@@ -393,28 +394,65 @@ const DefaultListPreference: React.FC = () => {
 
   return (
     <div className="settings-section">
-      <h2>Default List</h2>
+      <h2>Default List Preferences</h2>
       <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
-        Choose which list view to show when the app opens.
+        Choose which list and filter to show when each page loads.
       </p>
 
-      <div className="form-group">
+      <div className="form-group" style={{ marginBottom: 16 }}>
+        <label htmlFor="default-task-list" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+          Default Task List
+        </label>
         <select
-          value={selectedListId}
-          onChange={handleChange}
-          disabled={saving}
-          aria-label="Default list preference"
+          id="default-task-list"
+          value={defaultTaskListId}
+          onChange={(e) => handleSave('default_task_list_id', e.target.value, setDefaultTaskListId)}
+          disabled={saving === 'default_task_list_id'}
+          aria-label="Default task list preference"
           style={{ width: '100%', maxWidth: 300 }}
         >
           <option value="">All Lists</option>
           {taskLists.map((list) => (
             <option key={list.id} value={list.id}>
-              {list.name} (Tasks)
+              {list.name}
             </option>
           ))}
+        </select>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: 16 }}>
+        <label htmlFor="default-task-filter" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+          Default Task Filter
+        </label>
+        <select
+          id="default-task-filter"
+          value={defaultTaskFilter}
+          onChange={(e) => handleSave('default_task_filter', e.target.value, setDefaultTaskFilter)}
+          disabled={saving === 'default_task_filter'}
+          aria-label="Default task filter preference"
+          style={{ width: '100%', maxWidth: 300 }}
+        >
+          <option value="my">My Tasks</option>
+          <option value="all">All Tasks</option>
+        </select>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: 16 }}>
+        <label htmlFor="default-shopping-list" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
+          Default Shopping List
+        </label>
+        <select
+          id="default-shopping-list"
+          value={defaultShoppingListId}
+          onChange={(e) => handleSave('default_shopping_list_id', e.target.value, setDefaultShoppingListId)}
+          disabled={saving === 'default_shopping_list_id'}
+          aria-label="Default shopping list preference"
+          style={{ width: '100%', maxWidth: 300 }}
+        >
+          <option value="">All Lists</option>
           {shoppingLists.map((list) => (
             <option key={list.id} value={list.id}>
-              {list.name} (Shopping)
+              {list.name}
             </option>
           ))}
         </select>
@@ -1443,7 +1481,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.1.9';
+const APP_VERSION = '1.2.0';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);

@@ -2,6 +2,18 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.2.0] - 2026-08-03
+
+### Added
+- Per-page default list preferences: separate settings for Tasks and Shopping pages
+- Default task filter preference: choose "My Tasks" or "All Tasks" as default view
+- Settings page now has three dropdowns: Default Task List, Default Task Filter, Default Shopping List
+
+### Changed
+- Removed old single "default_list_id" app-level navigation (replaced by per-page preferences)
+- TaskDashboard now reads user's saved default_task_list_id and default_task_filter on mount
+- ShoppingList now reads user's saved default_shopping_list_id on mount
+
 ## [1.1.9] - 2026-08-03
 
 ### Fixed

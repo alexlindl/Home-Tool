@@ -15,7 +15,7 @@ import { TaskCard } from '@/components/TaskCard';
 import { TaskForm } from '@/components/TaskForm';
 import { ListSelector } from '@/components/ListSelector';
 import { MoveToListModal } from '@/components/MoveToListModal';
-import { userApi, taskListApi, taskApi } from '@/services/api';
+import { userApi, taskListApi, taskApi, userSettingsApi } from '@/services/api';
 import type { Task, User, TaskList } from '@/types';
 
 type FilterMode = 'my' | 'all';
@@ -85,19 +85,41 @@ export const TaskDashboard: React.FC = () => {
     userApi.getAllUsers().then(setUsers).catch(() => {});
   }, []);
 
-  // Load lists and set default (skip if deep link already set a listId)
+  // Load lists and set default from user preference (skip if deep link already set a listId)
   useEffect(() => {
-    taskListApi.getAll().then((lists: TaskList[]) => {
+    taskListApi.getAll().then(async (lists: TaskList[]) => {
       setTaskLists(lists);
-      const defaultList = lists.find((l) => l.isDefault);
-      if (defaultList && !selectedListId) {
-        setSelectedListId(defaultList.id);
+      // Check user's saved preference
+      if (currentUser && !selectedListId) {
+        try {
+          const savedListId = await userSettingsApi.get(currentUser.id, 'default_task_list_id');
+          if (savedListId !== null) {
+            setSelectedListId(savedListId || 'all');
+          } else {
+            // No preference saved — fall back to isDefault list
+            const defaultList = lists.find((l) => l.isDefault);
+            if (defaultList) setSelectedListId(defaultList.id);
+          }
+        } catch {
+          const defaultList = lists.find((l) => l.isDefault);
+          if (defaultList) setSelectedListId(defaultList.id);
+        }
+      } else if (!selectedListId) {
+        const defaultList = lists.find((l) => l.isDefault);
+        if (defaultList) setSelectedListId(defaultList.id);
       }
       setListsLoaded(true);
-    }).catch(() => {
-      setListsLoaded(true);
-    });
+    }).catch(() => { setListsLoaded(true); });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load default task filter preference
+  useEffect(() => {
+    if (!currentUser) return;
+    userSettingsApi.get(currentUser.id, 'default_task_filter').then((val) => {
+      if (val === 'all') setFilter('all');
+      // default is 'my' so only change if explicitly 'all'
+    }).catch(() => {});
+  }, [currentUser]);
 
   // Persist sort option in sessionStorage
   useEffect(() => {
