@@ -56,6 +56,17 @@ router.post('/reset', async (req: Request, res: Response): Promise<void> => {
     if (clearShopping) {
       await query('DELETE FROM shopping_items');
       cleared.push('shopping_items');
+
+      // Log activity for shopping reset
+      try {
+        const { userId } = req.body;
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['shopping_reset', 'Shopping Items', userId || null]
+        );
+      } catch (logError) {
+        console.error('Failed to log shopping_reset activity:', logError);
+      }
     }
 
     // If all three are cleared, also clear non-prepopulated templates
@@ -202,7 +213,7 @@ router.get('/backup', async (_req: Request, res: Response): Promise<void> => {
     const categories = await query('SELECT * FROM categories');
 
     const backup = {
-      version: '1.0.0',
+      version: '1.1.0',
       exportedAt: new Date().toISOString(),
       data: {
         users: users.rows,

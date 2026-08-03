@@ -30,9 +30,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load user from localStorage on mount and verify it still exists
+  // Load user from localStorage on mount and verify it still exists.
+  // Also attempt HA ingress auto-login via /api/auth/me.
   useEffect(() => {
     const verify = async () => {
+      // First, try auto-login via HA ingress header
+      try {
+        const autoUser = await userApi.getAuthMe();
+        if (autoUser) {
+          setCurrentUser(autoUser);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(autoUser));
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Auto-login not available — fall through to localStorage check
+      }
+
+      // Fall back to localStorage-persisted user
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         try {

@@ -64,7 +64,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState<string>('anyone');
-  const [dueDate, setDueDate] = useState<string | null>(() => new Date().toISOString().split('T')[0] ?? null);
+  const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueTime, setDueTime] = useState('09:00');
   const [timePreset, setTimePreset] = useState<TimePreset>('morning');
   const [isRecurring, setIsRecurring] = useState(false);
@@ -72,6 +72,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
   const [notificationLeadHours, setNotificationLeadHours] = useState<number | null>(null);
   const [wantNotification, setWantNotification] = useState(false);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  const [rotationEnabled, setRotationEnabled] = useState(false);
+  const [rotationUserIds, setRotationUserIds] = useState<string[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [lists, setLists] = useState<TaskList[]>([]);
   const [selectedListId, setSelectedListId] = useState(listId || '');
@@ -130,6 +132,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
       }
       setNotificationLeadHours(editTask.notificationLeadHours ?? null);
       setWantNotification(editTask.notificationLeadHours != null && editTask.notificationLeadHours >= 0);
+      setRotationEnabled(editTask.rotationEnabled ?? false);
+      setRotationUserIds(editTask.rotationUserIds ?? []);
     } else {
       resetForm();
     }
@@ -149,6 +153,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     e.preventDefault();
     if (!title.trim()) return;
 
+    // Rotation validation
+    if (rotationEnabled && !isRecurring) {
+      setFormError('Rotation can only be enabled on recurring tasks.');
+      return;
+    }
+    if (rotationEnabled && rotationUserIds.length < 2) {
+      setFormError('At least 2 users must be selected for rotation.');
+      return;
+    }
+
     setSubmitting(true);
     setFormError(null);
     try {
@@ -163,11 +177,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           title: title.trim(),
           description: description.trim() || undefined,
           assignedTo: resolvedAssignedTo ?? undefined,
-          dueDate: fullDueDate ?? undefined,
+          dueDate: fullDueDate, // explicit null clears due date
           isRecurring,
+          rotationEnabled,
+          rotationUserIds: rotationEnabled ? rotationUserIds : [],
+          rotationCurrentIndex: rotationEnabled ? (editTask.rotationCurrentIndex ?? 0) : 0,
         };
         if (isRecurring && recurrencePattern) {
           input.recurrencePattern = recurrencePattern;
+        } else {
+          input.recurrencePattern = null; // explicitly clear recurrence when not recurring
         }
         if (wantNotification && notificationLeadHours !== null) {
           input.notificationLeadHours = notificationLeadHours;
@@ -185,6 +204,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           dueDate: fullDueDate,
           isRecurring,
           createdBy: currentUserId,
+          rotationEnabled: rotationEnabled || undefined,
+          rotationUserIds: rotationEnabled ? rotationUserIds : undefined,
+          rotationCurrentIndex: rotationEnabled ? 0 : undefined,
         };
         if (isRecurring && recurrencePattern) {
           input.recurrencePattern = recurrencePattern;
@@ -236,7 +258,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setTitle('');
     setDescription('');
     setAssignedTo('anyone');
-    setDueDate(new Date().toISOString().split('T')[0] ?? null);
+    setDueDate(null);
     setDueTime('09:00');
     setTimePreset('morning');
     setIsRecurring(false);
@@ -244,6 +266,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setNotificationLeadHours(null);
     setWantNotification(false);
     setSaveAsTemplate(false);
+    setRotationEnabled(false);
+    setRotationUserIds([]);
     setFormError(null);
   };
 
@@ -314,13 +338,36 @@ export const TaskForm: React.FC<TaskFormProps> = ({
           </div>
 
           <div className="form-group">
-            <label htmlFor="task-due-date">Due Date</label>
-            <input
-              id="task-due-date"
-              type="date"
-              value={dueDate ?? ''}
-              onChange={(e) => setDueDate(e.target.value || null)}
-            />
+            <label htmlFor="task-due-date">Due Date (optional)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                id="task-due-date"
+                type="date"
+                value={dueDate ?? ''}
+                onChange={(e) => setDueDate(e.target.value || null)}
+                style={{ flex: 1 }}
+              />
+              {dueDate && (
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={() => {
+                    setDueDate(null);
+                    setDueTime('09:00');
+                    setTimePreset('morning');
+                    if (isRecurring) {
+                      setIsRecurring(false);
+                      setRecurrencePattern(null);
+                      setRotationEnabled(false);
+                    }
+                  }}
+                  aria-label="Clear due date"
+                  style={{ padding: '4px 8px', fontSize: '1rem', lineHeight: 1 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
 
           {dueDate && (
@@ -356,7 +403,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 id="task-recurring"
                 type="checkbox"
                 checked={isRecurring}
-                onChange={(e) => setIsRecurring(e.target.checked)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsRecurring(checked);
+                  if (!checked) {
+                    setRotationEnabled(false);
+                  }
+                }}
               />
               Recurring task
             </label>
@@ -375,6 +428,49 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 value={recurrencePattern}
                 onChange={setRecurrencePattern}
               />
+            </div>
+          )}
+
+          {isRecurring && (
+            <div className="form-group form-group--inline">
+              <label htmlFor="task-rotation-enabled">
+                <input
+                  id="task-rotation-enabled"
+                  type="checkbox"
+                  checked={rotationEnabled}
+                  onChange={(e) => setRotationEnabled(e.target.checked)}
+                />
+                Rotate assignment between users
+              </label>
+            </div>
+          )}
+
+          {isRecurring && rotationEnabled && (
+            <div className="form-group">
+              <label>Rotation Users (select at least 2)</label>
+              <div className="rotation-user-checkboxes" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {users.map((u) => (
+                  <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={rotationUserIds.includes(u.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setRotationUserIds((prev) => [...prev, u.id]);
+                        } else {
+                          setRotationUserIds((prev) => prev.filter((id) => id !== u.id));
+                        }
+                      }}
+                    />
+                    {u.name}
+                  </label>
+                ))}
+              </div>
+              {rotationUserIds.length < 2 && (
+                <p className="form-error" style={{ color: 'var(--color-danger, #e74c3c)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+                  At least 2 users must be selected for rotation
+                </p>
+              )}
             </div>
           )}
 

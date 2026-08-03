@@ -15,9 +15,9 @@ import { AddItemForm } from '@/components/AddItemForm';
 import { EditShoppingItemForm } from '@/components/EditShoppingItemForm';
 import { ListSelector } from '@/components/ListSelector';
 import { MoveToListModal } from '@/components/MoveToListModal';
-import { shoppingListApi, shoppingApi } from '@/services/api';
+import { shoppingListApi, shoppingApi, userApi } from '@/services/api';
 import { useUndoSnackbar } from '@/contexts/UndoSnackbarContext';
-import type { ShoppingItem, ShoppingList as ShoppingListType, Category } from '@/types';
+import type { ShoppingItem, ShoppingList as ShoppingListType, Category, User } from '@/types';
 
 const categoryOrder: Category[] = [
   'produce',
@@ -37,6 +37,7 @@ const categoryLabels: Record<string, string> = {
   frozen: '🧊 Frozen',
   pantry: '🫙 Pantry',
   household: '🏠 Household',
+  uncategorized: '📦 Uncategorized',
 };
 
 export const ShoppingList: React.FC = () => {
@@ -44,6 +45,18 @@ export const ShoppingList: React.FC = () => {
   const { showUndo } = useUndoSnackbar();
   const [searchParams] = useSearchParams();
   const deepLinkApplied = useRef(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input by 100ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Read deep link query params
   const listIdParam = searchParams.get('listId');
@@ -54,6 +67,8 @@ export const ShoppingList: React.FC = () => {
   const [shoppingLists, setShoppingLists] = useState<ShoppingListType[]>([]);
   const [movingItem, setMovingItem] = useState<ShoppingItem | null>(null);
   const [moveSnackbar, setMoveSnackbar] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
+  const [users, setUsers] = useState<User[]>([]);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   // Load lists and set default (skip default if listId came from deep link)
   useEffect(() => {
@@ -71,6 +86,19 @@ export const ShoppingList: React.FC = () => {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load users for name resolution in detail panel
+  useEffect(() => {
+    userApi.getAllUsers().then(setUsers).catch(() => {});
+  }, []);
+
+  const userNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const u of users) {
+      map[u.id] = u.name;
+    }
+    return map;
+  }, [users]);
+
   const { items, loading, error, purchaseItem, refreshList } = useShopping({
     userName: currentUser?.name,
     listId: selectedListId === 'all' ? undefined : selectedListId || undefined,
@@ -87,29 +115,40 @@ export const ShoppingList: React.FC = () => {
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<Category>>(new Set());
 
+  // Filter items by search query (≥2 chars, case-insensitive substring on item name)
+  const searchFilteredItems = useMemo(() => {
+    const unpurchased = items.filter((i) => !i.isPurchased);
+    if (debouncedSearch.length < 2) return unpurchased;
+    const query = debouncedSearch.toLowerCase();
+    return unpurchased.filter((item) => item.name.toLowerCase().includes(query));
+  }, [items, debouncedSearch]);
+
   const groupedItems = useMemo(() => {
     const groups: Record<string, ShoppingItem[]> = {};
     // Initialize known categories
     for (const cat of categoryOrder) {
       groups[cat] = [];
     }
-    for (const item of items) {
-      if (!item.isPurchased) {
-        if (!groups[item.category]) {
-          groups[item.category] = [];
-        }
-        groups[item.category]!.push(item);
+    for (const item of searchFilteredItems) {
+      if (!groups[item.category]) {
+        groups[item.category] = [];
       }
+      groups[item.category]!.push(item);
     }
     return groups;
-  }, [items]);
+  }, [searchFilteredItems]);
 
-  // Build display order: known categories first, then any custom ones
+  // Build display order: known categories first, then custom ones, "uncategorized" always last
   const displayOrder = useMemo(() => {
     const customCategories = Object.keys(groupedItems).filter(
-      (cat) => !categoryOrder.includes(cat) && groupedItems[cat]!.length > 0
+      (cat) => !categoryOrder.includes(cat) && cat !== 'uncategorized' && groupedItems[cat]!.length > 0
     );
-    return [...categoryOrder, ...customCategories];
+    const order = [...categoryOrder, ...customCategories];
+    // Always push "uncategorized" to the end if it has items
+    if (groupedItems['uncategorized'] && groupedItems['uncategorized'].length > 0) {
+      order.push('uncategorized');
+    }
+    return order;
   }, [groupedItems]);
 
   const toggleCategory = (category: Category) => {
@@ -138,6 +177,10 @@ export const ShoppingList: React.FC = () => {
         },
       });
     }
+  };
+
+  const handleToggleExpand = (itemId: string) => {
+    setExpandedItemId((prev) => (prev === itemId ? null : itemId));
   };
 
   const handleEdit = (item: ShoppingItem) => {
@@ -207,6 +250,34 @@ export const ShoppingList: React.FC = () => {
         </div>
       )}
 
+      {/* Search input */}
+      <div className="search-input-container">
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search items..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Search shopping items"
+        />
+        {searchQuery && (
+          <button
+            className="search-clear-btn"
+            onClick={() => setSearchQuery('')}
+            aria-label="Clear search"
+            type="button"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {!loading && searchFilteredItems.length === 0 && debouncedSearch.length >= 2 && (
+        <div className="empty-state">
+          <p>No items match your search.</p>
+        </div>
+      )}
+
       <div className="category-groups">
         {displayOrder.map((category) => {
           const categoryItems = groupedItems[category] || [];
@@ -240,6 +311,9 @@ export const ShoppingList: React.FC = () => {
                       onEdit={handleEdit}
                       onMoveToList={handleMoveToList}
                       canMove={canMoveItem}
+                      isExpanded={expandedItemId === item.id}
+                      onToggleExpand={handleToggleExpand}
+                      userNames={userNames}
                     />
                   ))}
                 </div>

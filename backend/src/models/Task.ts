@@ -36,6 +36,9 @@ export interface Task {
   recurrenceOrdinalWeek?: number;    // 1-5 for Nth occurrence patterns
   notificationLeadHours?: number;    // Per-task notification lead time override (hours)
   listId?: string;                   // Task list UUID
+  rotationEnabled: boolean;          // Whether user rotation is enabled
+  rotationUserIds: string[];         // Ordered user IDs for rotation
+  rotationCurrentIndex: number;      // Current position in rotation
   status: 'pending' | 'completed';
   completedAt?: Date;
   completedBy?: string;    // User ID
@@ -62,6 +65,9 @@ export interface TaskRow {
   recurrence_ordinal_week: number | null;   // New: 1-5 for Nth occurrence
   notification_lead_hours: number | null;   // Per-task notification lead time override
   list_id: string | null;                   // Task list UUID
+  rotation_enabled: boolean;                // Whether user rotation is enabled
+  rotation_user_ids: string[];              // Ordered user IDs for rotation
+  rotation_current_index: number;           // Current position in rotation
   status: string;
   completed_at: Date | null;
   completed_by: string | null;
@@ -81,6 +87,9 @@ export const taskFromRow = (row: TaskRow): Task => {
     createdBy: row.created_by,
     dueDate: row.due_date,       // null for backlog tasks
     isRecurring: row.is_recurring,
+    rotationEnabled: row.rotation_enabled ?? false,
+    rotationUserIds: row.rotation_user_ids ?? [],
+    rotationCurrentIndex: row.rotation_current_index ?? 0,
     status: row.status as 'pending' | 'completed',
     completedAt: row.completed_at || undefined,
     completedBy: row.completed_by || undefined,

@@ -18,6 +18,7 @@ import {
   activityApi,
   taskListApi,
   shoppingListApi,
+  userSettingsApi,
   CategoryRecord,
 } from '@/services/api';
 import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
@@ -321,6 +322,113 @@ const UserManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+};
+
+// ===========================================================================
+// DefaultListPreference
+// ===========================================================================
+
+const DefaultListPreference: React.FC = () => {
+  const { currentUser } = useAuth();
+  const [taskLists, setTaskLists] = useState<TaskList[]>([]);
+  const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
+  const [selectedListId, setSelectedListId] = useState<string>('');
+  const [previousListId, setPreviousListId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchData = async () => {
+      try {
+        const [tl, sl] = await Promise.all([
+          taskListApi.getAll(),
+          shoppingListApi.getAll(),
+        ]);
+        setTaskLists(tl);
+        setShoppingLists(sl);
+
+        // Load current setting
+        const value = await userSettingsApi.get(currentUser.id, 'default_list_id');
+        const listId = value ?? '';
+        setSelectedListId(listId);
+        setPreviousListId(listId);
+      } catch {
+        // ignore fetch errors — default to "All Lists"
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [currentUser]);
+
+  const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!currentUser) return;
+    const newValue = e.target.value;
+    setSelectedListId(newValue);
+    setError('');
+    setConfirmation('');
+    setSaving(true);
+
+    try {
+      await userSettingsApi.put(currentUser.id, 'default_list_id', newValue);
+      setPreviousListId(newValue);
+      setConfirmation('Saved!');
+      setTimeout(() => setConfirmation(''), 2000);
+    } catch {
+      setError('Failed to save preference');
+      setSelectedListId(previousListId);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!currentUser) return null;
+  if (loading) return <p className="loading-state">Loading preference...</p>;
+
+  return (
+    <div className="settings-section">
+      <h2>Default List</h2>
+      <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+        Choose which list view to show when the app opens.
+      </p>
+
+      <div className="form-group">
+        <select
+          value={selectedListId}
+          onChange={handleChange}
+          disabled={saving}
+          aria-label="Default list preference"
+          style={{ width: '100%', maxWidth: 300 }}
+        >
+          <option value="">All Lists</option>
+          {taskLists.map((list) => (
+            <option key={list.id} value={list.id}>
+              {list.name} (Tasks)
+            </option>
+          ))}
+          {shoppingLists.map((list) => (
+            <option key={list.id} value={list.id}>
+              {list.name} (Shopping)
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {confirmation && (
+        <p style={{ color: 'var(--color-primary)', fontSize: '0.875rem', marginTop: 8 }}>
+          {confirmation}
+        </p>
+      )}
+      {error && (
+        <p className="error-state" style={{ marginTop: 8 }}>
+          {error}
+        </p>
       )}
     </div>
   );
@@ -1335,7 +1443,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1591,7 +1699,12 @@ export const Settings: React.FC = () => {
       </div>
 
       <div className="settings-content" role="tabpanel" aria-label={`${activeTab} settings`}>
-        {activeTab === 'users' && <UserManagement />}
+        {activeTab === 'users' && (
+          <>
+            <UserManagement />
+            <DefaultListPreference />
+          </>
+        )}
         {activeTab === 'database' && <DatabaseManagement />}
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'templates' && <TemplateManagement />}

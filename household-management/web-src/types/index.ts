@@ -64,6 +64,9 @@ export interface Task {
   completedAt?: string; // ISO date string
   completedBy?: string; // User ID
   notificationLeadHours?: number; // per-task notification override (hours)
+  rotationEnabled: boolean; // whether task rotates through users
+  rotationUserIds: string[]; // ordered user IDs for rotation
+  rotationCurrentIndex: number; // current position in rotation
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
@@ -142,6 +145,21 @@ export interface ItemTemplate {
 }
 
 // ============================================================
+// User Settings Types
+// ============================================================
+
+/**
+ * UserSetting model - per-user key/value preference
+ */
+export interface UserSetting {
+  id: string;
+  userId: string;
+  settingKey: string;
+  settingValue: string;
+  updatedAt: string; // ISO date string
+}
+
+// ============================================================
 // API Request Types
 // ============================================================
 
@@ -157,6 +175,9 @@ export interface CreateTaskInput {
   recurrencePattern?: AnyRecurrencePattern;
   notificationLeadHours?: number; // per-task notification override (hours)
   saveAsTemplate?: boolean; // opt-in template saving
+  rotationEnabled?: boolean; // opt-in rotation through users
+  rotationUserIds?: string[]; // ordered user IDs for rotation
+  rotationCurrentIndex?: number; // starting position in rotation
 }
 
 /**
@@ -166,10 +187,13 @@ export interface UpdateTaskInput {
   title?: string;
   description?: string;
   assignedTo?: string;
-  dueDate?: string;
+  dueDate?: string | null; // null to explicitly clear due date
   isRecurring?: boolean;
-  recurrencePattern?: AnyRecurrencePattern;
+  recurrencePattern?: AnyRecurrencePattern | null; // null to explicitly clear recurrence
   notificationLeadHours?: number; // per-task notification override (hours)
+  rotationEnabled?: boolean; // opt-in rotation through users
+  rotationUserIds?: string[]; // ordered user IDs for rotation
+  rotationCurrentIndex?: number; // current position in rotation
 }
 
 /**

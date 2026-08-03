@@ -24,19 +24,19 @@ const userIdArb = fc.uuid();
 /** Generates a non-empty userName */
 const userNameArb = fc
   .string({ minLength: 1, maxLength: 50 })
-  .filter((s) => s.trim().length > 0);
+  .filter((s: string) => s.trim().length > 0);
 
 /** Generates an ingressPath starting with / */
 const ingressPathArb = fc
   .string({ minLength: 1, maxLength: 60 })
-  .filter((s) => s.trim().length > 0)
-  .map((s) => '/' + s.replace(/^\/+/, '') + '/');
+  .filter((s: string) => s.trim().length > 0)
+  .map((s: string) => '/' + s.replace(/^\/+/, '') + '/');
 
 /** Generates a backendUrl starting with http:// */
 const backendUrlArb = fc
   .string({ minLength: 1, maxLength: 60 })
-  .filter((s) => s.trim().length > 0 && !s.includes(' '))
-  .map((s) => 'http://' + s.replace(/^https?:\/\//, ''));
+  .filter((s: string) => s.trim().length > 0 && !s.includes(' '))
+  .map((s: string) => 'http://' + s.replace(/^https?:\/\//, ''));
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -58,7 +58,7 @@ describe('YAML Snippet Generator - Property 11: YAML snippet interpolation corre
         userNameArb,
         ingressPathArb,
         backendUrlArb,
-        (userId, userName, ingressPath, backendUrl) => {
+        (userId: string, userName: string, ingressPath: string, backendUrl: string) => {
           const snippets = generateYamlSnippets({
             userId,
             userName,
@@ -98,7 +98,7 @@ describe('YAML Snippet Generator - Property 11: YAML snippet interpolation corre
         userNameArb,
         ingressPathArb,
         backendUrlArb,
-        (userId, userName, ingressPath, backendUrl) => {
+        (userId: string, userName: string, ingressPath: string, backendUrl: string) => {
           const snippets = generateYamlSnippets({
             userId,
             userName,
@@ -139,7 +139,7 @@ describe('YAML Snippet Generator - Property 11: YAML snippet interpolation corre
         userNameArb,
         ingressPathArb,
         backendUrlArb,
-        (userId, userName, ingressPath, backendUrl) => {
+        (userId: string, userName: string, ingressPath: string, backendUrl: string) => {
           const snippets = generateYamlSnippets({
             userId,
             userName,
@@ -177,7 +177,7 @@ describe('YAML Snippet Generator - Property 11: YAML snippet interpolation corre
         userNameArb,
         ingressPathArb,
         backendUrlArb,
-        (userId, userName, ingressPath, backendUrl) => {
+        (userId: string, userName: string, ingressPath: string, backendUrl: string) => {
           const snippets = generateYamlSnippets({
             userId,
             userName,

@@ -79,6 +79,18 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       );
     } catch { /* non-fatal */ }
 
+    // Log activity for item template creation (templates are implicitly created when adding items directly)
+    if (!templateId) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['item_template_created', item.name, addedBy]
+        );
+      } catch (err) {
+        console.error('Failed to log item_template_created activity:', err);
+      }
+    }
+
     res.status(201).json({ item });
   } catch (error) {
     console.error('Error adding shopping item:', error);
@@ -297,6 +309,16 @@ router.put('/templates/:id', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Log activity for item template update
+    try {
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['item_template_updated', template.name, req.body.userId || null]
+      );
+    } catch (err) {
+      console.error('Failed to log item_template_updated activity:', err);
+    }
+
     res.status(200).json({ template });
   } catch (error) {
     console.error('Error updating item template:', error);
@@ -318,7 +340,11 @@ router.delete('/templates/:id', async (req: Request, res: Response): Promise<voi
   try {
     const id = req.params.id as string;
 
-    const { deleteItemTemplate } = await import('../db/shoppingQueries');
+    const { deleteItemTemplate, getItemTemplateById } = await import('../db/shoppingQueries');
+
+    // Fetch template name before deletion for activity logging
+    const templateToDelete = await getItemTemplateById(id);
+
     const deleted = await deleteItemTemplate(id);
 
     if (!deleted) {
@@ -327,6 +353,18 @@ router.delete('/templates/:id', async (req: Request, res: Response): Promise<voi
         message: `Item template with ID ${id} not found`,
       });
       return;
+    }
+
+    // Log activity for item template deletion
+    if (templateToDelete) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['item_template_deleted', templateToDelete.name, req.body.userId || null]
+        );
+      } catch (err) {
+        console.error('Failed to log item_template_deleted activity:', err);
+      }
     }
 
     res.status(200).json({ message: 'Item template deleted successfully' });
@@ -718,6 +756,19 @@ router.patch('/:id/move', async (req: Request, res: Response): Promise<void> => 
 
     // Move the item
     const updatedItem = await moveShoppingItem(id as string, targetListId);
+
+    // Log activity for shopping item move
+    if (updatedItem) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['shopping_item_moved', updatedItem.name, req.body.userId || null]
+        );
+      } catch (err) {
+        console.error('Failed to log shopping_item_moved activity:', err);
+      }
+    }
+
     res.status(200).json({ item: updatedItem });
   } catch (error) {
     console.error('Error moving shopping item:', error);

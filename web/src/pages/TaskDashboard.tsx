@@ -52,6 +52,9 @@ export const TaskDashboard: React.FC = () => {
   const [movingTask, setMovingTask] = useState<Task | null>(null);
   const [taskLists, setTaskLists] = useState<TaskList[]>([]);
   const [moveSnackbar, setMoveSnackbar] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   // Deep link: apply query parameters on mount
   useEffect(() => {
@@ -105,6 +108,14 @@ export const TaskDashboard: React.FC = () => {
     }
   }, [sortOption]);
 
+  // Debounce search query (100ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const userNames = useMemo(() => {
     const map: Record<string, string> = {};
     for (const u of users) {
@@ -134,6 +145,12 @@ export const TaskDashboard: React.FC = () => {
 
   const filteredAndSortedTasks = useMemo(() => {
     let result = [...tasks];
+
+    // Apply search filter: ≥2 chars triggers case-insensitive substring match on title
+    if (debouncedSearchQuery.length >= 2) {
+      const query = debouncedSearchQuery.toLowerCase();
+      result = result.filter((task) => task.title.toLowerCase().includes(query));
+    }
 
     // Apply "Due / Overdue" filter: show only pending tasks where dueDate <= now
     if (dueOverdueFilter) {
@@ -168,7 +185,7 @@ export const TaskDashboard: React.FC = () => {
     });
 
     return result;
-  }, [tasks, dueOverdueFilter, sortOption, userNames]);
+  }, [tasks, debouncedSearchQuery, dueOverdueFilter, sortOption, userNames]);
 
   const handleComplete = async (taskId: string) => {
     if (!currentUser) return;
@@ -235,6 +252,10 @@ export const TaskDashboard: React.FC = () => {
   // Determine if other lists exist for the "Move to list" option
   const canMoveTask = selectedListId !== 'all' && taskLists.length > 1;
 
+  const handleToggleExpand = (taskId: string) => {
+    setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
+  };
+
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOption(e.target.value as SortOption);
   };
@@ -293,10 +314,37 @@ export const TaskDashboard: React.FC = () => {
         </select>
       </div>
 
+      {/* Search Input */}
+      <div className="search-input-container">
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search tasks..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          aria-label="Search tasks"
+        />
+        {searchQuery && (
+          <button
+            className="search-clear-btn"
+            onClick={() => setSearchQuery('')}
+            aria-label="Clear search"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
       {loading && <div className="loading-state">Loading tasks...</div>}
       {error && <div className="error-state">{error}</div>}
 
-      {!loading && filteredAndSortedTasks.length === 0 && (
+      {!loading && filteredAndSortedTasks.length === 0 && debouncedSearchQuery.length >= 2 && (
+        <div className="empty-state">
+          <p>No items match your search.</p>
+        </div>
+      )}
+
+      {!loading && filteredAndSortedTasks.length === 0 && debouncedSearchQuery.length < 2 && (
         <div className="empty-state">
           <p>No tasks yet. Create one to get started!</p>
         </div>
@@ -313,6 +361,8 @@ export const TaskDashboard: React.FC = () => {
             canMove={canMoveTask}
             userNames={userNames}
             isCurrentUser={task.assignedTo === currentUser?.id}
+            isExpanded={expandedTaskId === task.id}
+            onToggleExpand={handleToggleExpand}
           />
         ))}
       </div>

@@ -59,6 +59,11 @@ describe('Task Database Queries', () => {
         recurrence_type: null,
         recurrence_day_of_week: null,
         recurrence_ordinal_week: null,
+        notification_lead_hours: null,
+        list_id: 'default-list-1',
+        rotation_enabled: false,
+        rotation_user_ids: [],
+        rotation_current_index: 0,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -90,6 +95,9 @@ describe('Task Database Queries', () => {
           null,
           'default-list-1',
           null,
+          false,
+          [],
+          0,
         ]
       );
 
@@ -130,6 +138,11 @@ describe('Task Database Queries', () => {
         recurrence_type: null,
         recurrence_day_of_week: null,
         recurrence_ordinal_week: null,
+        notification_lead_hours: null,
+        list_id: 'default-list-1',
+        rotation_enabled: false,
+        rotation_user_ids: [],
+        rotation_current_index: 0,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -160,6 +173,9 @@ describe('Task Database Queries', () => {
           null,
           'default-list-1',
           null,
+          false,
+          [],
+          0,
         ]
       );
 
@@ -194,6 +210,11 @@ describe('Task Database Queries', () => {
         recurrence_type: null,
         recurrence_day_of_week: null,
         recurrence_ordinal_week: null,
+        notification_lead_hours: null,
+        list_id: 'default-list-1',
+        rotation_enabled: false,
+        rotation_user_ids: [],
+        rotation_current_index: 0,
         status: 'pending',
         completed_at: null,
         completed_by: null,
@@ -224,6 +245,9 @@ describe('Task Database Queries', () => {
           null,
           'default-list-1',
           null,
+          false,
+          [],
+          0,
         ]
       );
 

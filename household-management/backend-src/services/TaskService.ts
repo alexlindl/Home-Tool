@@ -61,6 +61,12 @@ export interface TaskInput {
   listId?: string;
   /** Per-task notification lead time override (hours) */
   notificationLeadHours?: number;
+  /** Whether user rotation is enabled */
+  rotationEnabled?: boolean;
+  /** Ordered user IDs for rotation */
+  rotationUserIds?: string[];
+  /** Current position in rotation */
+  rotationCurrentIndex?: number;
 }
 
 /**
@@ -116,6 +122,17 @@ export class TaskService {
     // Requirement 2.3 – isRecurring must be explicitly set (boolean)
     if (typeof input.isRecurring !== 'boolean') {
       throw new TaskValidationError('Task must be designated as recurring or one-off');
+    }
+
+    // Requirement 8.2 – rotation requires at least 2 users
+    if (input.rotationEnabled === true) {
+      if (!input.rotationUserIds || input.rotationUserIds.length < 2) {
+        throw new TaskValidationError('Rotation requires at least 2 users');
+      }
+      // Requirement 8.7 – rotation only valid for recurring tasks
+      if (!input.isRecurring) {
+        throw new TaskValidationError('Rotation can only be enabled on recurring tasks');
+      }
     }
 
     // Validate enhanced recurrence pattern if provided
@@ -208,6 +225,9 @@ export class TaskService {
       recurrenceOrdinalWeek: input.recurrencePattern?.ordinalWeek,
       listId: input.listId,
       notificationLeadHours: input.notificationLeadHours,
+      rotationEnabled: input.rotationEnabled,
+      rotationUserIds: input.rotationUserIds,
+      rotationCurrentIndex: input.rotationCurrentIndex,
     };
 
     // Persist the task
@@ -317,6 +337,20 @@ export class TaskService {
         throw new TaskValidationError(
           `Assigned user with ID ${updates.assignedTo} not found`
         );
+      }
+    }
+
+    // Rotation validation (Requirement 8.2, 8.7)
+    const effectiveRotationEnabled = updates.rotationEnabled !== undefined ? updates.rotationEnabled : existing.rotationEnabled;
+    const effectiveRotationUserIds = updates.rotationUserIds !== undefined ? updates.rotationUserIds : existing.rotationUserIds;
+    const effectiveIsRecurring = updates.isRecurring !== undefined ? updates.isRecurring : existing.isRecurring;
+
+    if (effectiveRotationEnabled === true) {
+      if (!effectiveRotationUserIds || effectiveRotationUserIds.length < 2) {
+        throw new TaskValidationError('Rotation requires at least 2 users');
+      }
+      if (!effectiveIsRecurring) {
+        throw new TaskValidationError('Rotation can only be enabled on recurring tasks');
       }
     }
 
@@ -452,6 +486,20 @@ export class TaskService {
         }
 
         if (nextDbInput) {
+          // Requirement 8.3, 8.4 – Advance rotation on recurring task completion
+          if (task.rotationEnabled && task.rotationUserIds.length >= 2) {
+            const newIndex = (task.rotationCurrentIndex + 1) % task.rotationUserIds.length;
+            nextDbInput.assignedTo = task.rotationUserIds[newIndex]!;
+            nextDbInput.rotationEnabled = true;
+            nextDbInput.rotationUserIds = task.rotationUserIds;
+            nextDbInput.rotationCurrentIndex = newIndex;
+          } else {
+            // Carry forward rotation config even if not advancing
+            nextDbInput.rotationEnabled = task.rotationEnabled;
+            nextDbInput.rotationUserIds = task.rotationUserIds;
+            nextDbInput.rotationCurrentIndex = task.rotationCurrentIndex;
+          }
+
           await dbCreateTask(nextDbInput);
         }
       } catch (spawnError) {

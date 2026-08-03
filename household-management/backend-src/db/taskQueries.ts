@@ -34,6 +34,9 @@ export interface CreateTaskInput {
   recurrenceOrdinalWeek?: number;   // 1-5 for Nth occurrence
   listId?: string;
   notificationLeadHours?: number;   // Per-task notification lead time override (hours)
+  rotationEnabled?: boolean;        // Whether user rotation is enabled
+  rotationUserIds?: string[];       // Ordered user IDs for rotation
+  rotationCurrentIndex?: number;    // Current position in rotation
 }
 
 /**
@@ -55,6 +58,9 @@ export interface UpdateTaskInput {
   status?: 'pending' | 'completed';
   completedAt?: Date | null;
   completedBy?: string | null;
+  rotationEnabled?: boolean;               // Whether user rotation is enabled
+  rotationUserIds?: string[];              // Ordered user IDs for rotation
+  rotationCurrentIndex?: number;           // Current position in rotation
 }
 
 /**
@@ -88,8 +94,8 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
       title, description, assigned_to, created_by, due_date,
       is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date,
       recurrence_type, recurrence_day_of_week, recurrence_ordinal_week, list_id,
-      notification_lead_hours
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      notification_lead_hours, rotation_enabled, rotation_user_ids, rotation_current_index
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     RETURNING *`,
     [
       input.title,
@@ -106,6 +112,9 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
       input.recurrenceOrdinalWeek ?? null,
       listId,
       input.notificationLeadHours ?? null,
+      input.rotationEnabled ?? false,
+      input.rotationUserIds ?? [],
+      input.rotationCurrentIndex ?? 0,
     ]
   );
 
@@ -171,6 +180,18 @@ export const updateTask = async (id: string, input: UpdateTaskInput): Promise<Ta
   if (input.notificationLeadHours !== undefined) {
     updates.push(`notification_lead_hours = $${paramCount++}`);
     values.push(input.notificationLeadHours);
+  }
+  if (input.rotationEnabled !== undefined) {
+    updates.push(`rotation_enabled = $${paramCount++}`);
+    values.push(input.rotationEnabled);
+  }
+  if (input.rotationUserIds !== undefined) {
+    updates.push(`rotation_user_ids = $${paramCount++}`);
+    values.push(input.rotationUserIds);
+  }
+  if (input.rotationCurrentIndex !== undefined) {
+    updates.push(`rotation_current_index = $${paramCount++}`);
+    values.push(input.rotationCurrentIndex);
   }
   if (input.status !== undefined) {
     updates.push(`status = $${paramCount++}`);

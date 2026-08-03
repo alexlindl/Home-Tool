@@ -249,6 +249,47 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
       await query('DELETE FROM tasks WHERE assigned_to = $1', [id]);
     }
 
+    // Requirement 8.6 – Remove user from all rotation_user_ids arrays and adjust indices
+    try {
+      // Find all tasks that include this user in their rotation list
+      const rotationTasks = await query(
+        'SELECT id, rotation_user_ids, rotation_current_index, rotation_enabled FROM tasks WHERE $1 = ANY(rotation_user_ids)',
+        [id]
+      );
+
+      for (const row of rotationTasks.rows as { id: string; rotation_user_ids: string[]; rotation_current_index: number; rotation_enabled: boolean }[]) {
+        const oldIds = row.rotation_user_ids;
+        const removedIndex = oldIds.indexOf(id);
+        const newIds = oldIds.filter(uid => uid !== id);
+        let newCurrentIndex = row.rotation_current_index;
+
+        // Adjust index if the removed user was before or at the current index
+        if (removedIndex <= row.rotation_current_index) {
+          newCurrentIndex = Math.max(0, newCurrentIndex - 1);
+        }
+
+        // If fewer than 2 users remain, disable rotation
+        if (newIds.length < 2) {
+          await query(
+            'UPDATE tasks SET rotation_user_ids = $1, rotation_current_index = 0, rotation_enabled = FALSE WHERE id = $2',
+            [newIds, row.id]
+          );
+        } else {
+          // Ensure index is within bounds
+          if (newCurrentIndex >= newIds.length) {
+            newCurrentIndex = 0;
+          }
+          await query(
+            'UPDATE tasks SET rotation_user_ids = $1, rotation_current_index = $2 WHERE id = $3',
+            [newIds, newCurrentIndex, row.id]
+          );
+        }
+      }
+    } catch (rotationErr) {
+      console.error('Error updating rotation lists on user deletion:', rotationErr);
+      // Non-fatal: continue with user deletion
+    }
+
     // Remove references in task_history
     await query(
       'DELETE FROM task_history WHERE assigned_to = $1 OR completed_by = $1',

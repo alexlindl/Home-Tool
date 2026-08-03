@@ -29,7 +29,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   listId,
 }) => {
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<Category>('produce');
+  const [category, setCategory] = useState<Category>('uncategorized');
   const [categories, setCategories] = useState<string[]>([]);
   const [templates, setTemplates] = useState<ItemTemplate[]>([]);
   const [lists, setLists] = useState<ShoppingList[]>([]);
@@ -38,16 +38,14 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoryError, setCategoryError] = useState('');
+  const [previousCategory, setPreviousCategory] = useState<Category>('uncategorized');
 
   useEffect(() => {
     if (open) {
       shoppingApi.getTemplates().then(setTemplates).catch(() => {});
       categoryApi.getAll().then((cats) => {
-        const names = cats.map((c) => c.name);
+        const names = cats.map((c) => c.name).filter((n) => n.toLowerCase() !== 'uncategorized');
         setCategories(names);
-        if (names.length > 0 && !names.includes(category)) {
-          setCategory(names[0]!);
-        }
       }).catch(() => {});
       shoppingListApi.getAll().then(setLists).catch(() => {});
       // Reset selectedListId to prop value when form opens
@@ -57,7 +55,8 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    if (value === '__new__') {
+    if (value === '__add_new__') {
+      setPreviousCategory(category);
       setShowNewCategory(true);
       setCategoryError('');
     } else {
@@ -70,7 +69,10 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
 
   const handleCreateCategory = async () => {
     const trimmed = newCategoryName.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setCategoryError('Category name cannot be blank');
+      return;
+    }
     setCategoryError('');
     try {
       const created = await categoryApi.create(trimmed);
@@ -90,6 +92,13 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
     }
   };
 
+  const handleCancelNewCategory = () => {
+    setShowNewCategory(false);
+    setNewCategoryName('');
+    setCategoryError('');
+    setCategory(previousCategory);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -105,7 +114,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
       });
       onAdded(item);
       setName('');
-      setCategory('produce');
+      setCategory('uncategorized');
       onClose();
     } catch {
       // Error handling
@@ -183,7 +192,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
             <label htmlFor="item-category">Category *</label>
             <select
               id="item-category"
-              value={showNewCategory ? '__new__' : category}
+              value={showNewCategory ? '__add_new__' : category}
               onChange={handleCategoryChange}
             >
               {categories.map((c) => (
@@ -191,7 +200,8 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
                   {c.charAt(0).toUpperCase() + c.slice(1)}
                 </option>
               ))}
-              <option value="__new__">+ Add new category...</option>
+              <option value="uncategorized">Uncategorized</option>
+              <option value="__add_new__">+ Add new category...</option>
             </select>
             {showNewCategory && (
               <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -200,15 +210,27 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
                   value={newCategoryName}
                   onChange={(e) => { setNewCategoryName(e.target.value); setCategoryError(''); }}
                   placeholder="New category name"
+                  maxLength={100}
                   style={{ flex: 1 }}
+                  aria-label="New category name"
                 />
                 <button
                   type="button"
                   className="btn btn--primary"
                   onClick={handleCreateCategory}
-                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                  style={{ padding: '6px 10px', fontSize: '1rem', lineHeight: 1 }}
+                  aria-label="Confirm new category"
                 >
-                  Create
+                  ✓
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--secondary"
+                  onClick={handleCancelNewCategory}
+                  style={{ padding: '6px 10px', fontSize: '1rem', lineHeight: 1 }}
+                  aria-label="Cancel new category"
+                >
+                  ✕
                 </button>
               </div>
             )}

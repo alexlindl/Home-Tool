@@ -118,9 +118,21 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
  * Response: 200 OK
  * { "message": "Activity history cleared" }
  */
-router.delete('/', async (_req: Request, res: Response): Promise<void> => {
+router.delete('/', async (req: Request, res: Response): Promise<void> => {
   try {
     await query('DELETE FROM task_history');
+
+    // Log activity for history cleared
+    try {
+      const { userId } = req.body;
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['history_cleared', 'Task History', userId || null]
+      );
+    } catch (logError) {
+      console.error('Failed to log history_cleared activity:', logError);
+    }
+
     res.status(200).json({ message: 'Activity history cleared' });
   } catch (error) {
     console.error('Error clearing activity history:', error);

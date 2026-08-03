@@ -79,6 +79,15 @@ export const userApi = {
     await apiClient.post('/users/select', { userName: name });
   },
 
+  /**
+   * GET /api/auth/me — attempt auto-login via HA ingress header.
+   * Returns the matched user or null if no match / not in ingress.
+   */
+  async getAuthMe(): Promise<User | null> {
+    const response = await apiClient.get<{ user: User | null }>('/auth/me');
+    return response.data.user;
+  },
+
   /** Create a new user */
   async createUser(name: string): Promise<User> {
     const response = await apiClient.post<{ user: User }>('/users', { name });
@@ -415,6 +424,29 @@ export const templateApi = {
   /** Delete a shopping item template */
   async deleteItemTemplate(id: string): Promise<void> {
     await apiClient.delete(`/shopping/templates/${id}`);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// User Settings API
+// ---------------------------------------------------------------------------
+
+export const userSettingsApi = {
+  /** Get a per-user setting value */
+  async get(userId: string, key: string): Promise<string | null> {
+    try {
+      const response = await apiClient.get<{ value: string }>(`/user-settings/${userId}/${key}`);
+      return response.data.value;
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr.response?.status === 404) return null;
+      throw err;
+    }
+  },
+
+  /** Upsert a per-user setting value */
+  async put(userId: string, key: string, value: string): Promise<void> {
+    await apiClient.put(`/user-settings/${userId}/${key}`, { value });
   },
 };
 

@@ -2,6 +2,33 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.0] - 2025-07-25
+
+### Added
+- Activity log: record task history clears and shopping resets
+- Activity log: record category and template create/update/delete events
+- Activity log: record task and shopping item moves between lists
+- Home Assistant sidebar registration with auto-login via X-Ingress-User header
+- Task rotation: recurring tasks automatically rotate through selected users (round-robin)
+- Inline category creation from shopping item add/edit form
+- "Uncategorized" option for shopping items (no category required)
+- Client-side search filtering on task and shopping list pages (≥2 chars, case-insensitive)
+- Default list preference per user (saved in settings, applied on app load)
+- "Exit to Home Assistant" button in navigation bar (visible inside HA ingress)
+- Expandable detail panels on task/item title click (description, due date, assignee, etc.)
+
+### Fixed
+- Bug: unable to remove due date from existing tasks (clear button added)
+- Bug: recurrence interval input resets value when selecting all and typing (local string state fix)
+
+### Changed
+- New tasks default to no due date (previously pre-selected today's date)
+- Tasks without due dates sort after all dated tasks in due-date sort order
+
+## 1.0.1
+- Added global 'Exit' navigation link to seamlessly drop out back to the main Home Assistant panel.
+- Enhanced Home button state-reset routing behavior.
+
 ## [1.0.0] - 2026-07-08
 
 ### 🎉 First Stable Release

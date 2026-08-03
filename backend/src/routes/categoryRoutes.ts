@@ -60,6 +60,15 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 
     const trimmedName = name.trim().toLowerCase();
 
+    // Reject reserved "uncategorized" name
+    if (trimmedName === 'uncategorized') {
+      res.status(400).json({
+        status: 'error',
+        message: "The category name 'uncategorized' is reserved",
+      });
+      return;
+    }
+
     // Check uniqueness
     const existing = await getCategoryByName(trimmedName);
     if (existing) {
@@ -71,6 +80,18 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     }
 
     const category = await createCategory(trimmedName);
+
+    // Log activity (non-fatal)
+    try {
+      const { userId } = req.body;
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['category_created', trimmedName, userId || null]
+      );
+    } catch (logError) {
+      console.error('Failed to log category_created activity:', logError);
+    }
+
     res.status(201).json({ category });
   } catch (error) {
     console.error('Error creating category:', error);
@@ -127,6 +148,18 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     const category = await updateCategory(id, trimmedName);
+
+    // Log activity (non-fatal)
+    try {
+      const { userId } = req.body;
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['category_updated', trimmedName, userId || null]
+      );
+    } catch (logError) {
+      console.error('Failed to log category_updated activity:', logError);
+    }
+
     res.status(200).json({ category });
   } catch (error) {
     console.error('Error updating category:', error);
@@ -178,6 +211,17 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
         message: 'Failed to delete category',
       });
       return;
+    }
+
+    // Log activity (non-fatal)
+    try {
+      const { userId } = req.body;
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['category_deleted', existing.name, userId || null]
+      );
+    } catch (logError) {
+      console.error('Failed to log category_deleted activity:', logError);
     }
 
     res.status(200).json({ message: 'Category deleted successfully' });

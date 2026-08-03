@@ -60,6 +60,9 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       listId,
       saveAsTemplate,
       notificationLeadHours,
+      rotationEnabled,
+      rotationUserIds,
+      rotationCurrentIndex,
     } = req.body;
 
     // Validate required fields
@@ -208,6 +211,9 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       listId,
       saveAsTemplate: saveAsTemplate === true ? true : undefined,
       notificationLeadHours: notificationLeadHours !== undefined ? Number(notificationLeadHours) : undefined,
+      rotationEnabled: rotationEnabled === true ? true : undefined,
+      rotationUserIds: Array.isArray(rotationUserIds) ? rotationUserIds : undefined,
+      rotationCurrentIndex: rotationCurrentIndex !== undefined ? Number(rotationCurrentIndex) : undefined,
     });
 
     // Log activity for task creation
@@ -217,6 +223,18 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         ['task_created', task.title, createdBy]
       );
     } catch { /* non-fatal */ }
+
+    // Log activity for template creation when saveAsTemplate is true
+    if (saveAsTemplate === true) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['template_created', task.title, createdBy]
+        );
+      } catch (err) {
+        console.error('Failed to log template_created activity:', err);
+      }
+    }
 
     res.status(201).json({ task });
   } catch (error) {
@@ -575,6 +593,16 @@ router.put('/templates/:id', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Log activity for template update
+    try {
+      await query(
+        'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+        ['template_updated', template.title, req.body.userId || null]
+      );
+    } catch (err) {
+      console.error('Failed to log template_updated activity:', err);
+    }
+
     res.status(200).json({ template });
   } catch (error) {
     console.error('Error updating task template:', error);
@@ -596,7 +624,11 @@ router.delete('/templates/:id', async (req: Request, res: Response): Promise<voi
   try {
     const { id } = req.params;
 
-    const { deleteTaskTemplate } = await import('../db/taskQueries');
+    const { deleteTaskTemplate, getTaskTemplateById } = await import('../db/taskQueries');
+
+    // Fetch template title before deletion for activity logging
+    const templateToDelete = await getTaskTemplateById(id as string);
+
     const deleted = await deleteTaskTemplate(id as string);
 
     if (!deleted) {
@@ -605,6 +637,18 @@ router.delete('/templates/:id', async (req: Request, res: Response): Promise<voi
         message: `Task template with ID ${id} not found`,
       });
       return;
+    }
+
+    // Log activity for template deletion
+    if (templateToDelete) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['template_deleted', templateToDelete.title, req.body.userId || null]
+        );
+      } catch (err) {
+        console.error('Failed to log template_deleted activity:', err);
+      }
     }
 
     res.status(200).json({ message: 'Task template deleted successfully' });
@@ -798,6 +842,19 @@ router.patch('/:id/move', async (req: Request, res: Response): Promise<void> => 
 
     // Move the task
     const updatedTask = await moveTask(id as string, targetListId);
+
+    // Log activity for task move
+    if (updatedTask) {
+      try {
+        await query(
+          'INSERT INTO activity_log (event_type, item_title, user_id) VALUES ($1, $2, $3)',
+          ['task_moved', updatedTask.title, req.body.userId || null]
+        );
+      } catch (err) {
+        console.error('Failed to log task_moved activity:', err);
+      }
+    }
+
     res.status(200).json({ task: updatedTask });
   } catch (error) {
     console.error('Error moving task:', error);
