@@ -25,8 +25,8 @@ function AppContent() {
   const navigate = useNavigate();
   const defaultListApplied = useRef(false);
 
-  // Detect if running inside HA ingress iframe
-  const isInIngress = window.location.pathname.includes('/api/hassio_ingress/');
+  // Detect if running inside HA (either via ingress path or embedded in an iframe)
+  const isInIngress = window.location.pathname.includes('/api/hassio_ingress/') || window.self !== window.top;
 
   const handleExitToHA = () => {
     try {

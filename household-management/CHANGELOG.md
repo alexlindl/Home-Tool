@@ -2,6 +2,18 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.3] - 2026-08-03
+
+### Fixed
+- Task card action menu (Edit/Move) was hidden behind adjacent cards due to overflow:hidden on wrapper
+- "Exit to HA" button now shows when app is embedded in any iframe (not just ingress path)
+
+### Improved
+- Task rotation UI has helper text explaining what rotation does
+
+### Changed
+- Port 8023 now exposed to host network for non-admin user iframe access
+
 ## [1.1.2] - 2026-08-03
 
 ### Fixed

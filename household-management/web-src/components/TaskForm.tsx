@@ -442,6 +442,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 />
                 Rotate assignment between users
               </label>
+              <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem', margin: '2px 0 0 24px' }}>
+                Each time this task recurs, it assigns to the next person in the list
+              </p>
             </div>
           )}
 
