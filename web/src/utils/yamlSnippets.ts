@@ -13,6 +13,7 @@ export interface YamlSnippetParams {
   userName: string;
   ingressPath: string;
   backendUrl: string;
+  hostPort?: string;
 }
 
 /**
@@ -26,26 +27,52 @@ export function generateYamlSnippets(params: {
   userName: string;
   ingressPath: string;
   backendUrl: string;
+  hostPort?: string;
 }): Record<string, string> {
-  const { userId, userName, ingressPath, backendUrl } = params;
+  const { userId, userName, ingressPath: _ingressPath, backendUrl, hostPort } = params;
+
+  // Derive the direct-access base URL for button cards
+  // hostPort should be like "192.168.1.100:8023" or "homeassistant.local:8023"
+  const directUrl = hostPort
+    ? `http://${hostPort}`
+    : `http://HOSTNAME:8023`;
 
   return {
+    // REST Sensors
     'rest_sensor_tasks': generateRestSensorTasks(backendUrl),
+    'rest_sensor_tasks_overdue': generateRestSensorTasksOverdue(backendUrl),
     'rest_sensor_shopping': generateRestSensorShopping(backendUrl),
     'rest_sensor_user': generateRestSensorUser(userId, userName, backendUrl),
-    'markdown_card_tasks': generateMarkdownCardTasks(),
+
+    // Markdown Cards
+    'markdown_card_tasks_all': generateMarkdownCardTasksAll(),
+    'markdown_card_tasks_overdue': generateMarkdownCardTasksOverdue(),
+    'markdown_card_tasks_user': generateMarkdownCardTasksUser(userName),
     'markdown_card_shopping': generateMarkdownCardShopping(),
-    'button_card_deep_link': generateButtonCardDeepLink(ingressPath, userName),
+
+    // Button Cards
+    'button_card_open_app': generateButtonCardOpenApp(directUrl),
+    'button_card_my_tasks': generateButtonCardMyTasks(directUrl, userId, userName),
+    'button_card_shopping': generateButtonCardShopping(directUrl),
+    'button_card_create_task': generateButtonCardCreateTask(directUrl),
+
+    // REST Commands
     'rest_command_complete_task': generateRestCommandCompleteTask(userId, backendUrl),
     'rest_command_purchase_item': generateRestCommandPurchaseItem(userId, backendUrl),
-    'button_card_open_app': generateButtonCardOpenApp(ingressPath),
+
+    // Full Configuration Example
+    'configuration_yaml_full': generateConfigurationYamlFull(userId, userName, backendUrl),
   };
 }
 
+// ---------------------------------------------------------------------------
+// REST Sensors
+// ---------------------------------------------------------------------------
+
 function generateRestSensorTasks(backendUrl: string): string {
   return `# REST Sensor: Task Summary
-# Add to configuration.yaml under "rest:" or "sensor:" section
-# Polls the task summary endpoint every 30 seconds
+# Polls the task summary endpoint every 30 seconds.
+# State = total pending count; attributes hold the full task list.
 rest:
   - resource: "${backendUrl}/api/summary/tasks"
     scan_interval: 30
@@ -61,10 +88,28 @@ rest:
           - lastUpdated`;
 }
 
+function generateRestSensorTasksOverdue(backendUrl: string): string {
+  return `# REST Sensor: Overdue Tasks
+# Same endpoint as above, but the value_template extracts overdue count
+# and the tasks attribute is filtered to only overdue items.
+rest:
+  - resource: "${backendUrl}/api/summary/tasks"
+    scan_interval: 30
+    sensor:
+      - name: "Household Tasks Overdue"
+        value_template: "{{ value_json.totalOverdue }}"
+        unit_of_measurement: "tasks"
+        json_attributes_path: "$"
+        json_attributes:
+          - totalOverdue
+          - tasks
+          - lastUpdated`;
+}
+
 function generateRestSensorShopping(backendUrl: string): string {
   return `# REST Sensor: Shopping Summary
-# Add to configuration.yaml under "rest:" or "sensor:" section
-# Polls the shopping summary endpoint every 30 seconds
+# Polls the shopping summary endpoint every 30 seconds.
+# State = total unpurchased count; attributes hold items by category.
 rest:
   - resource: "${backendUrl}/api/summary/shopping"
     scan_interval: 30
@@ -81,8 +126,8 @@ rest:
 
 function generateRestSensorUser(userId: string, userName: string, backendUrl: string): string {
   return `# REST Sensor: Per-User Summary for ${userName}
-# Add to configuration.yaml under "rest:" or "sensor:" section
-# Polls the per-user summary endpoint every 30 seconds
+# Polls the per-user summary endpoint every 30 seconds.
+# State = pending count for this user.
 rest:
   - resource: "${backendUrl}/api/summary/user/${userId}"
     scan_interval: 30
@@ -99,9 +144,13 @@ rest:
           - lastUpdated`;
 }
 
-function generateMarkdownCardTasks(): string {
-  return `# Markdown Card: Task List
-# Add to your Lovelace dashboard as a Markdown card
+// ---------------------------------------------------------------------------
+// Markdown Cards
+// ---------------------------------------------------------------------------
+
+function generateMarkdownCardTasksAll(): string {
+  return `# Markdown Card: All Pending Tasks
+# Shows every pending task with assignee and due date.
 type: markdown
 title: Household Tasks
 content: >
@@ -109,14 +158,50 @@ content: >
   ({{ state_attr('sensor.household_tasks', 'totalOverdue') }} overdue)
 
   {% for task in state_attr('sensor.household_tasks', 'tasks') %}
-  - **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %}{% if task.dueDate %} — due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}
+  - **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %}{% if task.dueDate %} — due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}{% if task.isOverdue %} 🔴{% endif %}
 
   {% endfor %}`;
 }
 
+function generateMarkdownCardTasksOverdue(): string {
+  return `# Markdown Card: Overdue Tasks Only
+# Filters to show only tasks that are past their due date.
+type: markdown
+title: Overdue Tasks
+content: >
+  {% set overdue_tasks = state_attr('sensor.household_tasks', 'tasks') | selectattr('isOverdue', 'equalto', true) | list %}
+  {% if overdue_tasks | length > 0 %}
+  **{{ overdue_tasks | length }}** overdue:
+
+  {% for task in overdue_tasks %}
+  - 🔴 **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %}{% if task.dueDate %} — was due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}
+
+  {% endfor %}
+  {% else %}
+  ✅ No overdue tasks!
+  {% endif %}`;
+}
+
+function generateMarkdownCardTasksUser(userName: string): string {
+  const sensorName = `sensor.${userName.toLowerCase().replace(/\s+/g, '_')}_tasks`;
+  return `# Markdown Card: Tasks for ${userName}
+# Uses the per-user sensor to show only this user's tasks.
+type: markdown
+title: "${userName}'s Tasks"
+content: >
+  **{{ states('${sensorName}') }}** pending
+  ({{ state_attr('${sensorName}', 'overdueCount') }} overdue)
+
+  {% if state_attr('${sensorName}', 'nextTask') %}
+  **Next up:** {{ state_attr('${sensorName}', 'nextTask').title }}{% if state_attr('${sensorName}', 'nextTask').dueDate %} — due {{ state_attr('${sensorName}', 'nextTask').dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}
+
+  {% endif %}
+  Completed last 7 days: {{ state_attr('${sensorName}', 'completedLast7Days') }}`;
+}
+
 function generateMarkdownCardShopping(): string {
   return `# Markdown Card: Shopping List
-# Add to your Lovelace dashboard as a Markdown card
+# Shows shopping items grouped by category.
 type: markdown
 title: Shopping List
 content: >
@@ -125,31 +210,78 @@ content: >
   {% for category, items in state_attr('sensor.shopping_list', 'byCategory').items() %}
   ### {{ category | capitalize }}
   {% for item in items %}
-  - {{ item.name }}
+  - {{ item.name }}{% if item.quantity and item.quantity > 1 %} (x{{ item.quantity }}){% endif %}
+
   {% endfor %}
   {% endfor %}`;
 }
 
-function generateButtonCardDeepLink(ingressPath: string, _userName: string): string {
-  return `# Button Card: Deep Link to App
-# Opens the app filtered to your tasks
+// ---------------------------------------------------------------------------
+// Button Cards
+// ---------------------------------------------------------------------------
+
+function generateButtonCardOpenApp(directUrl: string): string {
+  return `# Button Card: Open Household Management App
+# Opens the full app via direct port access.
+# NOTE: action "url" opens an external URL — required for non-HA paths.
 type: button
-name: "My Tasks"
-icon: mdi:clipboard-check-outline
+name: "Household Management"
+icon: mdi:home-assistant
 tap_action:
-  action: navigate
-  navigation_path: "${ingressPath}tasks?assignedTo={{ user_id }}"
-hold_action:
-  action: navigate
-  navigation_path: "${ingressPath}tasks?action=create"
+  action: url
+  url_path: "${directUrl}/"
 show_name: true
 show_icon: true`;
 }
 
+function generateButtonCardMyTasks(directUrl: string, userId: string, userName: string): string {
+  return `# Button Card: Open My Tasks (${userName})
+# Deep-links to the app filtered to this user's tasks.
+# Uses HashRouter format: /#/path?params
+type: button
+name: "${userName}'s Tasks"
+icon: mdi:clipboard-check-outline
+tap_action:
+  action: url
+  url_path: "${directUrl}/#/tasks?assignedTo=${userId}"
+show_name: true
+show_icon: true`;
+}
+
+function generateButtonCardShopping(directUrl: string): string {
+  return `# Button Card: Open Shopping List
+# Deep-links to the shopping list view.
+type: button
+name: "Shopping List"
+icon: mdi:cart-outline
+tap_action:
+  action: url
+  url_path: "${directUrl}/#/shopping"
+show_name: true
+show_icon: true`;
+}
+
+function generateButtonCardCreateTask(directUrl: string): string {
+  return `# Button Card: Create New Task
+# Deep-links to the task creation form.
+type: button
+name: "New Task"
+icon: mdi:plus-circle-outline
+tap_action:
+  action: url
+  url_path: "${directUrl}/#/tasks?action=create"
+show_name: true
+show_icon: true`;
+}
+
+// ---------------------------------------------------------------------------
+// REST Commands
+// ---------------------------------------------------------------------------
+
 function generateRestCommandCompleteTask(userId: string, backendUrl: string): string {
   return `# REST Command: Complete a Task
-# Add to configuration.yaml under "rest_command:"
 # Call via service: rest_command.complete_household_task
+# Pass task_id as a service data template variable.
 rest_command:
   complete_household_task:
     url: "${backendUrl}/api/tasks/{{ task_id }}/complete"
@@ -161,8 +293,8 @@ rest_command:
 
 function generateRestCommandPurchaseItem(userId: string, backendUrl: string): string {
   return `# REST Command: Purchase Shopping Item
-# Add to configuration.yaml under "rest_command:"
 # Call via service: rest_command.purchase_shopping_item
+# Pass item_id as a service data template variable.
 rest_command:
   purchase_shopping_item:
     url: "${backendUrl}/api/shopping/{{ item_id }}/purchase"
@@ -172,16 +304,74 @@ rest_command:
     payload: '{"userId": "${userId}"}'`;
 }
 
-function generateButtonCardOpenApp(ingressPath: string): string {
-  return `# Button Card: Open Household Management App
-# Add to your Lovelace dashboard as a button card
-# Opens the full app via ingress
-type: button
-name: "Household Management"
-icon: mdi:home-assistant
-tap_action:
-  action: navigate
-  navigation_path: "${ingressPath}"
-show_name: true
-show_icon: true`;
+// ---------------------------------------------------------------------------
+// Full Configuration Example
+// ---------------------------------------------------------------------------
+
+function generateConfigurationYamlFull(userId: string, userName: string, backendUrl: string): string {
+  return `# ============================================================
+# Household Management — Full configuration.yaml example
+# ============================================================
+# Add the sections below to your Home Assistant configuration.yaml.
+# Restart HA after saving for REST sensors to load.
+
+# --- REST Sensors ---
+rest:
+  # All tasks
+  - resource: "${backendUrl}/api/summary/tasks"
+    scan_interval: 30
+    sensor:
+      - name: "Household Tasks"
+        value_template: "{{ value_json.totalPending }}"
+        unit_of_measurement: "tasks"
+        json_attributes:
+          - totalPending
+          - totalOverdue
+          - tasks
+          - perUser
+          - lastUpdated
+
+  # Shopping list
+  - resource: "${backendUrl}/api/summary/shopping"
+    scan_interval: 30
+    sensor:
+      - name: "Shopping List"
+        value_template: "{{ value_json.totalUnpurchased }}"
+        unit_of_measurement: "items"
+        json_attributes:
+          - totalUnpurchased
+          - items
+          - byCategory
+          - lastUpdated
+
+  # Per-user summary (${userName})
+  - resource: "${backendUrl}/api/summary/user/${userId}"
+    scan_interval: 30
+    sensor:
+      - name: "${userName} Tasks"
+        value_template: "{{ value_json.pendingCount }}"
+        unit_of_measurement: "tasks"
+        json_attributes:
+          - userName
+          - pendingCount
+          - overdueCount
+          - completedLast7Days
+          - nextTask
+          - lastUpdated
+
+# --- REST Commands ---
+rest_command:
+  complete_household_task:
+    url: "${backendUrl}/api/tasks/{{ task_id }}/complete"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: '{"userId": "${userId}"}'
+
+  purchase_shopping_item:
+    url: "${backendUrl}/api/shopping/{{ item_id }}/purchase"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: '{"userId": "${userId}"}'`;
 }

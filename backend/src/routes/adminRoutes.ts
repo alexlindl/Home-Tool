@@ -213,7 +213,7 @@ router.get('/backup', async (_req: Request, res: Response): Promise<void> => {
     const categories = await query('SELECT * FROM categories');
 
     const backup = {
-      version: '1.1.7',
+      version: '1.1.8',
       exportedAt: new Date().toISOString(),
       data: {
         users: users.rows,

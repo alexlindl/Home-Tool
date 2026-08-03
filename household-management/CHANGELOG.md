@@ -2,6 +2,23 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.8] - 2026-08-03
+
+### Improved
+- Dashboard Integration page completely overhauled with expanded snippet library
+
+### Added
+- Overdue-only task sensor and markdown card
+- Per-user markdown card showing personal task summary
+- Button cards for My Tasks, Shopping List, and Create Task deep links
+- Full configuration.yaml example combining all sensors and commands
+- Host/Port input for button card URL customization
+- HA_INTEGRATION.md standalone documentation with API reference, examples, deep link table, and troubleshooting
+
+### Fixed
+- Button cards now use action "url" instead of broken "navigate" for non-HA paths
+- Deep links use HashRouter format (/#/path) for proper routing
+
 ## [1.1.7] - 2026-08-03
 
 ### Fixed
