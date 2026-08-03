@@ -67,6 +67,19 @@ export const TaskHistory: React.FC = () => {
     }
   };
 
+  const handleUndoPurchase = async (item: ShoppingItem) => {
+    setUndoingId(item.id);
+    try {
+      await shoppingApi.unpurchaseItem(item.id);
+      setPurchases((prev) => prev.filter((p) => p.id !== item.id));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to undo purchase';
+      setError(message);
+    } finally {
+      setUndoingId(null);
+    }
+  };
+
   function formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString(undefined, {
       month: 'short',
@@ -170,9 +183,20 @@ export const TaskHistory: React.FC = () => {
               <div key={item.id} className="history-card">
                 <div className="history-card-main">
                   <span className="history-card-title">{item.name}</span>
-                  <span className="history-card-date">
-                    {item.purchasedAt ? formatDate(item.purchasedAt) : ''}
-                  </span>
+                  <div className="history-card-actions">
+                    <button
+                      className="history-undo-btn"
+                      onClick={() => handleUndoPurchase(item)}
+                      disabled={undoingId === item.id}
+                      title="Undo — mark as not purchased"
+                      aria-label={`Undo purchase of ${item.name}`}
+                    >
+                      {undoingId === item.id ? '...' : '↩'}
+                    </button>
+                    <span className="history-card-date">
+                      {item.purchasedAt ? formatDate(item.purchasedAt) : ''}
+                    </span>
+                  </div>
                 </div>
                 <div className="history-card-details">
                   <span className="history-card-assigned">

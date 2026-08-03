@@ -2,6 +2,14 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.6] - 2026-08-03
+
+### Added
+- Undo button on shopping history tab to revert purchased items back to the shopping list
+
+### Fixed
+- HA exit button now works from inside cross-origin iframes (webpage dashboard) by detecting ancestor origin
+
 ## [1.1.5] - 2026-08-03
 
 ### Improved

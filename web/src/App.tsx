@@ -30,19 +30,24 @@ function AppContent() {
 
   const handleExitToHA = () => {
     try {
-      // Use window.top to break out of all iframe nesting to the HA root
-      if (window.top) {
+      // Try navigating top frame directly (works when same-origin, e.g. ingress)
+      if (window.top && window.top !== window.self) {
         window.top.location.href = '/';
-      } else {
-        window.parent.location.href = '/';
+        return;
       }
     } catch {
-      // Cross-origin fallback: try parent, then self
-      try {
-        window.parent.location.href = '/';
-      } catch {
-        window.location.href = '/';
-      }
+      // Cross-origin: top frame is on a different port/origin
+    }
+    // Fallback: open HA dashboard in the same tab, replacing the iframe page
+    // This works even cross-origin because we're navigating our own window
+    // which will break out of the iframe since HA doesn't frame itself
+    try {
+      const haOrigin = window.location.ancestorOrigins?.[0] || window.location.origin.replace(/:\d+$/, ':8123');
+      window.top!.location.href = haOrigin + '/';
+    } catch {
+      // Last resort: just go to port 8123 on same host
+      const host = window.location.hostname;
+      window.location.href = `http://${host}:8123/`;
     }
   };
 
