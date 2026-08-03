@@ -2,6 +2,11 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.1] - 2026-08-03
+
+### Fixed
+- Removed `auth_api` and `webui` from config.yaml to fix HA sidebar panel showing onboarding screen instead of the app when accessed via ingress
+
 ## [1.1.0] - 2025-07-25
 
 ### Added
