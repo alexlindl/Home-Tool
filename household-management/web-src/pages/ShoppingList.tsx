@@ -69,6 +69,7 @@ export const ShoppingList: React.FC = () => {
   const [moveSnackbar, setMoveSnackbar] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
   const [users, setUsers] = useState<User[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [defaultSaved, setDefaultSaved] = useState(false);
 
   // Load lists and set default from user preference (skip default if listId came from deep link)
   useEffect(() => {
@@ -215,6 +216,17 @@ export const ShoppingList: React.FC = () => {
     shoppingListApi.getAll().then(setShoppingLists).catch(() => {});
   }, [refreshList]);
 
+  const handleSetAsDefault = async () => {
+    if (!currentUser) return;
+    try {
+      await userSettingsApi.put(currentUser.id, 'default_shopping_list_id', selectedListId === 'all' ? '' : selectedListId);
+      setDefaultSaved(true);
+      setTimeout(() => setDefaultSaved(false), 2000);
+    } catch {
+      // silent fail
+    }
+  };
+
   const handleMoveToList = (item: ShoppingItem) => {
     setMovingItem(item);
   };
@@ -254,6 +266,15 @@ export const ShoppingList: React.FC = () => {
         onRefresh={handleListRefresh}
         showAllOption={true}
       />
+
+      <button
+        className="btn btn--text"
+        onClick={handleSetAsDefault}
+        style={{ fontSize: '0.75rem', padding: '2px 8px', opacity: 0.7 }}
+        title="Save current list as your default view"
+      >
+        {defaultSaved ? '✓ Saved' : '📌 Set as default'}
+      </button>
 
       {loading && <div className="loading-state">Loading shopping list...</div>}
       {error && <div className="error-state">{error}</div>}

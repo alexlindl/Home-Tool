@@ -55,6 +55,7 @@ export const TaskDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [defaultSaved, setDefaultSaved] = useState(false);
 
   // Deep link: apply query parameters on mount
   useEffect(() => {
@@ -278,6 +279,20 @@ export const TaskDashboard: React.FC = () => {
     setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
   };
 
+  const handleSetAsDefault = async () => {
+    if (!currentUser) return;
+    try {
+      await Promise.all([
+        userSettingsApi.put(currentUser.id, 'default_task_list_id', selectedListId === 'all' ? '' : selectedListId),
+        userSettingsApi.put(currentUser.id, 'default_task_filter', filter),
+      ]);
+      setDefaultSaved(true);
+      setTimeout(() => setDefaultSaved(false), 2000);
+    } catch {
+      // silent fail
+    }
+  };
+
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSortOption(e.target.value as SortOption);
   };
@@ -334,6 +349,14 @@ export const TaskDashboard: React.FC = () => {
           <option value="assignee">Assignee</option>
           <option value="title">Title</option>
         </select>
+        <button
+          className="btn btn--text"
+          onClick={handleSetAsDefault}
+          style={{ fontSize: '0.75rem', padding: '2px 8px', opacity: 0.7 }}
+          title="Save current list and filter as your default view"
+        >
+          {defaultSaved ? '✓ Saved' : '📌 Set as default'}
+        </button>
       </div>
 
       {/* Search Input */}

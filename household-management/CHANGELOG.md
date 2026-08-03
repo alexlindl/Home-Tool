@@ -2,6 +2,11 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.2.1] - 2026-08-03
+
+### Added
+- "📌 Set as default" button on Tasks and Shopping pages to save current view as default with one tap
+
 ## [1.2.0] - 2026-08-03
 
 ### Added

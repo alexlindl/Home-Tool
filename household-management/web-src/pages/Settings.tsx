@@ -1481,7 +1481,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
