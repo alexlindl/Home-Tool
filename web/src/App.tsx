@@ -30,9 +30,19 @@ function AppContent() {
 
   const handleExitToHA = () => {
     try {
-      window.parent.location.href = '/';
+      // Use window.top to break out of all iframe nesting to the HA root
+      if (window.top) {
+        window.top.location.href = '/';
+      } else {
+        window.parent.location.href = '/';
+      }
     } catch {
-      window.location.href = '/';
+      // Cross-origin fallback: try parent, then self
+      try {
+        window.parent.location.href = '/';
+      } catch {
+        window.location.href = '/';
+      }
     }
   };
 

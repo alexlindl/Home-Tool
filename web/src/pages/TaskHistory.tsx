@@ -1,6 +1,6 @@
 /**
  * TaskHistory Page
- * Displays completed tasks with date range filter.
+ * Displays completed tasks and purchased shopping items with tab navigation.
  *
  * Requirements: 5.1
  */
@@ -10,6 +10,8 @@ import { taskApi, userApi, shoppingApi } from '@/services/api';
 import { UserBadge } from '@/components/UserBadge';
 import type { TaskHistory as TaskHistoryType, User, ShoppingItem } from '@/types';
 
+type HistoryTab = 'tasks' | 'shopping';
+
 export const TaskHistory: React.FC = () => {
   const [history, setHistory] = useState<TaskHistoryType[]>([]);
   const [purchases, setPurchases] = useState<ShoppingItem[]>([]);
@@ -18,6 +20,7 @@ export const TaskHistory: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<HistoryTab>('tasks');
 
   const userNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -74,6 +77,22 @@ export const TaskHistory: React.FC = () => {
 
   return (
     <div className="page task-history">
+      {/* Tab selector */}
+      <div className="filter-bar">
+        <button
+          className={`filter-btn ${activeTab === 'tasks' ? 'filter-btn--active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          📋 Tasks
+        </button>
+        <button
+          className={`filter-btn ${activeTab === 'shopping' ? 'filter-btn--active' : ''}`}
+          onClick={() => setActiveTab('shopping')}
+        >
+          🛒 Shopping
+        </button>
+      </div>
+
       <div className="history-filter">
         <label htmlFor="history-days">Show last:</label>
         <select
@@ -92,50 +111,60 @@ export const TaskHistory: React.FC = () => {
       {loading && <div className="loading-state">Loading history...</div>}
       {error && <div className="error-state">{error}</div>}
 
-      {!loading && history.length === 0 && (
-        <div className="empty-state">
-          <p>No completed tasks in this period.</p>
-        </div>
+      {/* Tasks Tab */}
+      {activeTab === 'tasks' && !loading && (
+        <>
+          {history.length === 0 && (
+            <div className="empty-state">
+              <p>No completed tasks in this period.</p>
+            </div>
+          )}
+
+          <div className="history-list">
+            {history.map((entry) => (
+              <div key={entry.id} className="history-card">
+                <div className="history-card-main">
+                  <span className="history-card-title">{entry.title}</span>
+                  <div className="history-card-actions">
+                    <button
+                      className="history-undo-btn"
+                      onClick={() => handleUndo(entry)}
+                      disabled={undoingId === entry.id}
+                      title="Undo — mark as pending"
+                      aria-label={`Undo completion of ${entry.title}`}
+                    >
+                      {undoingId === entry.id ? '...' : '↩'}
+                    </button>
+                    <span className="history-card-date">
+                      {formatDate(entry.completedAt)}
+                    </span>
+                  </div>
+                </div>
+                <div className="history-card-details">
+                  <span className="history-card-assigned">
+                    Assigned to: <UserBadge userName={entry.assignedTo ? (userNames[entry.assignedTo] || entry.assignedTo) : 'Anyone'} size="sm" />
+                    <span className="history-card-name">{entry.assignedTo ? (userNames[entry.assignedTo] || entry.assignedTo) : 'Anyone'}</span>
+                  </span>
+                  <span className="history-card-completed">
+                    Completed by: <UserBadge userName={userNames[entry.completedBy] || entry.completedBy} size="sm" />
+                    <span className="history-card-name">{userNames[entry.completedBy] || entry.completedBy}</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
-      <div className="history-list">
-        {history.map((entry) => (
-          <div key={entry.id} className="history-card">
-            <div className="history-card-main">
-              <span className="history-card-title">{entry.title}</span>
-              <div className="history-card-actions">
-                <button
-                  className="history-undo-btn"
-                  onClick={() => handleUndo(entry)}
-                  disabled={undoingId === entry.id}
-                  title="Undo — mark as pending"
-                  aria-label={`Undo completion of ${entry.title}`}
-                >
-                  {undoingId === entry.id ? '...' : '↩'}
-                </button>
-                <span className="history-card-date">
-                  {formatDate(entry.completedAt)}
-                </span>
-              </div>
-            </div>
-            <div className="history-card-details">
-              <span className="history-card-assigned">
-                Assigned to: <UserBadge userName={entry.assignedTo ? (userNames[entry.assignedTo] || entry.assignedTo) : 'Anyone'} size="sm" />
-                <span className="history-card-name">{entry.assignedTo ? (userNames[entry.assignedTo] || entry.assignedTo) : 'Anyone'}</span>
-              </span>
-              <span className="history-card-completed">
-                Completed by: <UserBadge userName={userNames[entry.completedBy] || entry.completedBy} size="sm" />
-                <span className="history-card-name">{userNames[entry.completedBy] || entry.completedBy}</span>
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent Shopping Purchases Section */}
-      {purchases.length > 0 && (
+      {/* Shopping Tab */}
+      {activeTab === 'shopping' && !loading && (
         <>
-          <h3 className="history-section-title">🛒 Recent Purchases</h3>
+          {purchases.length === 0 && (
+            <div className="empty-state">
+              <p>No purchased items in this period.</p>
+            </div>
+          )}
+
           <div className="history-list">
             {purchases.map((item) => (
               <div key={item.id} className="history-card">

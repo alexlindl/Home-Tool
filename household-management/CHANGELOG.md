@@ -2,6 +2,17 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.5] - 2026-08-03
+
+### Improved
+- History page now has Tasks/Shopping tabs instead of appending purchases at the bottom
+- Shopping tab shows purchased items with category, purchaser, and date
+
+## [1.1.4] - 2026-08-03
+
+### Fixed
+- HA exit button now uses window.top to break out of iframe nesting and navigate to HA dashboard
+
 ## [1.1.3] - 2026-08-03
 
 ### Fixed
