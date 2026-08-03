@@ -151,34 +151,49 @@ rest:
 function generateMarkdownCardTasksAll(): string {
   return `# Markdown Card: All Pending Tasks
 # Shows every pending task with assignee and due date.
+# TIP: Use content: | (pipe) not content: > (angle bracket) — the pipe
+# preserves line breaks needed for markdown rendering in HA cards.
 type: markdown
-title: Household Tasks
-content: >
-  **{{ state_attr('sensor.household_tasks', 'totalPending') }}** pending
-  ({{ state_attr('sensor.household_tasks', 'totalOverdue') }} overdue)
-
-  {% for task in state_attr('sensor.household_tasks', 'tasks') %}
-  - **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %}{% if task.dueDate %} — due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}{% if task.isOverdue %} 🔴{% endif %}
-
-  {% endfor %}`;
+title: 📋 Household Tasks
+content: |
+  {% set tasks = state_attr('sensor.household_tasks', 'tasks') %}
+  {% if tasks %}
+  **{{ state_attr('sensor.household_tasks', 'totalPending') }}** pending ({{ state_attr('sensor.household_tasks', 'totalOverdue') }} overdue)
+  {% for task in tasks %}
+  - **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %}{% if task.dueDate %} — due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}
+  {% endfor %}
+  {% else %}
+  _Waiting for data..._
+  {% endif %}`;
 }
 
 function generateMarkdownCardTasksOverdue(): string {
   return `# Markdown Card: Overdue Tasks Only
-# Filters to show only tasks that are past their due date.
+# Filters tasks by comparing dueDate timestamp to now().
+# NOTE: The API does NOT return an isOverdue field per task — you must
+# compare dueDate to now() in Jinja. Uses namespace() because HA's
+# Jinja2 doesn't allow reassigning variables inside for loops without it.
 type: markdown
-title: Overdue Tasks
-content: >
-  {% set overdue_tasks = state_attr('sensor.household_tasks', 'tasks') | selectattr('isOverdue', 'equalto', true) | list %}
-  {% if overdue_tasks | length > 0 %}
-  **{{ overdue_tasks | length }}** overdue:
-
-  {% for task in overdue_tasks %}
-  - 🔴 **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %}{% if task.dueDate %} — was due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}
-
+title: ⚠️ Overdue Tasks
+content: |
+  {% set tasks = state_attr('sensor.household_tasks', 'tasks') %}
+  {% if tasks %}
+  {% set ns = namespace(overdue=[]) %}
+  {% for task in tasks %}
+  {% if task.dueDate and (task.dueDate | as_timestamp(0)) < now().timestamp() %}
+  {% set ns.overdue = ns.overdue + [task] %}
+  {% endif %}
+  {% endfor %}
+  {% if ns.overdue | length > 0 %}
+  **{{ ns.overdue | length }}** overdue:
+  {% for task in ns.overdue %}
+  - 🔴 **{{ task.title }}**{% if task.assigneeName %} ({{ task.assigneeName }}){% endif %} — was due {{ task.dueDate | as_timestamp | timestamp_custom('%b %d %H:%M') }}
   {% endfor %}
   {% else %}
   ✅ No overdue tasks!
+  {% endif %}
+  {% else %}
+  _Waiting for data..._
   {% endif %}`;
 }
 
@@ -188,32 +203,37 @@ function generateMarkdownCardTasksUser(userName: string): string {
 # Uses the per-user sensor to show only this user's tasks.
 type: markdown
 title: "${userName}'s Tasks"
-content: >
-  **{{ states('${sensorName}') }}** pending
-  ({{ state_attr('${sensorName}', 'overdueCount') }} overdue)
-
+content: |
+  {% if states('${sensorName}') not in ['unavailable', 'unknown'] %}
+  **{{ states('${sensorName}') }}** pending ({{ state_attr('${sensorName}', 'overdueCount') }} overdue)
   {% if state_attr('${sensorName}', 'nextTask') %}
   **Next up:** {{ state_attr('${sensorName}', 'nextTask').title }}{% if state_attr('${sensorName}', 'nextTask').dueDate %} — due {{ state_attr('${sensorName}', 'nextTask').dueDate | as_timestamp | timestamp_custom('%b %d') }}{% endif %}
-
   {% endif %}
-  Completed last 7 days: {{ state_attr('${sensorName}', 'completedLast7Days') }}`;
+  Completed last 7 days: {{ state_attr('${sensorName}', 'completedLast7Days') }}
+  {% else %}
+  _Waiting for data..._
+  {% endif %}`;
 }
 
 function generateMarkdownCardShopping(): string {
   return `# Markdown Card: Shopping List
 # Shows shopping items grouped by category.
 type: markdown
-title: Shopping List
-content: >
+title: 🛒 Shopping List
+content: |
+  {% set by_cat = state_attr('sensor.shopping_list', 'byCategory') %}
+  {% if by_cat %}
   **{{ state_attr('sensor.shopping_list', 'totalUnpurchased') }}** items needed
+  {% for category, items in by_cat.items() %}
 
-  {% for category, items in state_attr('sensor.shopping_list', 'byCategory').items() %}
-  ### {{ category | capitalize }}
+  **{{ category | capitalize }}**
   {% for item in items %}
-  - {{ item.name }}{% if item.quantity and item.quantity > 1 %} (x{{ item.quantity }}){% endif %}
-
+  - {{ item.name }}
   {% endfor %}
-  {% endfor %}`;
+  {% endfor %}
+  {% else %}
+  _Waiting for data..._
+  {% endif %}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -312,10 +332,14 @@ function generateConfigurationYamlFull(userId: string, userName: string, backend
   return `# ============================================================
 # Household Management — Full configuration.yaml example
 # ============================================================
-# Add the sections below to your Home Assistant configuration.yaml.
-# Restart HA after saving for REST sensors to load.
+# IMPORTANT: "rest:" and "rest_command:" are SEPARATE top-level keys.
+# If you already have a "rest:" section, ADD the entries below to it.
+# If you already have a "rest_command:" section, ADD the entries below to it.
+# Do NOT nest rest_command inside rest — they are independent.
+#
+# Restart HA after saving for changes to take effect.
 
-# --- REST Sensors ---
+# --- REST Sensors (top-level key: "rest:") ---
 rest:
   # All tasks
   - resource: "${backendUrl}/api/summary/tasks"
@@ -359,7 +383,8 @@ rest:
           - nextTask
           - lastUpdated
 
-# --- REST Commands ---
+# --- REST Commands (SEPARATE top-level key) ---
+# This must NOT be indented under "rest:" — it is its own section.
 rest_command:
   complete_household_task:
     url: "${backendUrl}/api/tasks/{{ task_id }}/complete"

@@ -2,6 +2,16 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.9] - 2026-08-03
+
+### Fixed
+- Markdown card snippets now use `content: |` (literal block) for proper line break rendering
+- Overdue tasks card uses timestamp comparison (`dueDate | as_timestamp < now().timestamp()`) instead of non-existent `isOverdue` field
+- Overdue tasks card uses `namespace()` for loop variable accumulation (required by HA's Jinja2)
+- All markdown cards include null guards for sensor attributes (_Waiting for data..._ fallback)
+- REST sensor snippets use direct port URL (`http://HOST:8023`) not ingress URLs
+- HA_INTEGRATION.md documentation corrected to match production-tested card configurations
+
 ## [1.1.8] - 2026-08-03
 
 ### Improved

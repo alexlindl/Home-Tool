@@ -170,10 +170,9 @@ function DashboardIntegration({ users, currentUserId }: DashboardIntegrationProp
   );
 
   const backendUrl = useMemo(() => {
-    const origin = window.location.origin;
-    const base = ingressPath.endsWith('/') ? ingressPath.slice(0, -1) : ingressPath;
-    return `${origin}${base}`;
-  }, [ingressPath]);
+    // REST sensors/commands need direct port access (not ingress, which requires browser session)
+    return `http://${hostPort}`;
+  }, [hostPort]);
 
   const snippets = useMemo(() => {
     if (!selectedUser) return {};
