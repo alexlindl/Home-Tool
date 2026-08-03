@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.2] - 2026-08-03
+
+### Fixed
+- API base URL was absolute ('/api') which bypassed HA ingress proxy — now detected at runtime relative to page path
+- Removed auth_api and webui from config.yaml for proper ingress panel routing
+
 ## [1.1.1] - 2026-08-03
 
 ### Fixed
