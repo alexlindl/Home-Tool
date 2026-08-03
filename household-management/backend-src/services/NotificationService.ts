@@ -46,9 +46,6 @@ export class NotificationService {
     const linkedUsers = await getLinkedUsers();
     if (linkedUsers.length === 0) return;
 
-    // Read global default lead time (falls back to 0 hours if not set or invalid)
-    const globalDefault = await this.getGlobalLeadHours();
-
     const filters: TaskFilters = { status: 'pending' };
     const pendingTasks = await getTasks(filters);
 
