@@ -2,6 +2,11 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.2.2] - 2026-08-03
+
+### Fixed
+- Settings page default list dropdowns now show the actual effective default (isDefault list) when no preference has been saved, instead of always showing "All Lists"
+
 ## [1.2.1] - 2026-08-03
 
 ### Added

@@ -360,9 +360,13 @@ const DefaultListPreference: React.FC = () => {
           userSettingsApi.get(currentUser.id, 'default_task_filter'),
           userSettingsApi.get(currentUser.id, 'default_shopping_list_id'),
         ]);
-        setDefaultTaskListId(taskListVal ?? '');
+        // When no preference saved (null), show what the page actually defaults to:
+        // the list marked isDefault in the DB, or '' for "All Lists" if none
+        const defaultTaskList = tl.find((l) => l.isDefault);
+        const defaultShoppingList = sl.find((l) => l.isDefault);
+        setDefaultTaskListId(taskListVal ?? (defaultTaskList?.id || ''));
         setDefaultTaskFilter(taskFilterVal ?? 'my');
-        setDefaultShoppingListId(shoppingListVal ?? '');
+        setDefaultShoppingListId(shoppingListVal ?? (defaultShoppingList?.id || ''));
       } catch {
         // ignore fetch errors — defaults remain
       } finally {
@@ -1481,7 +1485,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
