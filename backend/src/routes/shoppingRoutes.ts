@@ -287,14 +287,17 @@ router.put('/templates/:id', async (req: Request, res: Response): Promise<void> 
 
     // Validate category if provided
     if (category !== undefined) {
-      const categories = await getAllCategories();
-      const validCategoryNames = categories.map(c => c.name);
-      if (!validCategoryNames.includes(category)) {
-        res.status(400).json({
-          status: 'error',
-          message: `Invalid category. Must be one of: ${validCategoryNames.join(', ')}`,
-        });
-        return;
+      // "uncategorized" is a special reserved value, always valid
+      if (category.toLowerCase() !== 'uncategorized') {
+        const categories = await getAllCategories();
+        const validCategoryNames = categories.map(c => c.name);
+        if (!validCategoryNames.includes(category)) {
+          res.status(400).json({
+            status: 'error',
+            message: `Invalid category. Must be one of: ${validCategoryNames.join(', ')}`,
+          });
+          return;
+        }
       }
     }
 

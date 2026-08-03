@@ -61,6 +61,9 @@ export class ShoppingService {
    * @throws ShoppingValidationError if category is not found in DB
    */
   private async validateCategory(category: string): Promise<void> {
+    // "uncategorized" is a special reserved value, always valid
+    if (category.toLowerCase() === 'uncategorized') return;
+
     const categories = await getAllCategories();
     const validNames = categories.map(c => c.name);
     if (!validNames.includes(category)) {

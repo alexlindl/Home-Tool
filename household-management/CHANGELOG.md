@@ -2,6 +2,11 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.1.7] - 2026-08-03
+
+### Fixed
+- Changing a shopping item's category to "Uncategorized" now saves correctly (was rejected by category validation)
+
 ## [1.1.6] - 2026-08-03
 
 ### Added
