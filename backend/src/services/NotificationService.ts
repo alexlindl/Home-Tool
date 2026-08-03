@@ -10,7 +10,6 @@ import { Task } from '../models/Task';
 import { User } from '../models/User';
 import { getLinkedUsers } from '../db/userQueries';
 import { getTasks, TaskFilters } from '../db/taskQueries';
-import { getAppSetting } from '../db/settingsQueries';
 
 export type NotificationType = 'due' | 'overdue';
 
@@ -92,24 +91,6 @@ export class NotificationService {
       for (const user of targets) {
         await this.sendNotification(user, task, type, today);
       }
-    }
-  }
-
-  /**
-   * Read the global notification lead hours from app_settings.
-   * Falls back to 0 if the setting doesn't exist or is invalid.
-   * Accepts 0 as a valid value (meaning "notify when due").
-   *
-   * @returns The global lead time in hours (non-negative number, default 0)
-   */
-  private async getGlobalLeadHours(): Promise<number> {
-    try {
-      const raw = await getAppSetting('notification_lead_hours');
-      if (raw === null) return 0;
-      const parsed = parseInt(raw, 10);
-      return isNaN(parsed) || parsed < 0 ? 0 : parsed;
-    } catch {
-      return 0;
     }
   }
 
