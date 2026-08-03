@@ -190,7 +190,7 @@ export interface UpdateTaskInput {
   dueDate?: string | null; // null to explicitly clear due date
   isRecurring?: boolean;
   recurrencePattern?: AnyRecurrencePattern | null; // null to explicitly clear recurrence
-  notificationLeadHours?: number; // per-task notification override (hours)
+  notificationLeadHours?: number | null; // per-task notification override (hours), null to clear
   rotationEnabled?: boolean; // opt-in rotation through users
   rotationUserIds?: string[]; // ordered user IDs for rotation
   rotationCurrentIndex?: number; // current position in rotation

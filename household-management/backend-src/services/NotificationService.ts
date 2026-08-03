@@ -55,7 +55,11 @@ export class NotificationService {
     for (const task of pendingTasks) {
       if (!task.dueDate) continue;
 
-      const effectiveLeadHours = task.notificationLeadHours ?? globalDefault;
+      // Only notify for tasks that have notifications explicitly enabled
+      // notificationLeadHours === null means the user did NOT opt in to notifications
+      if (task.notificationLeadHours === null || task.notificationLeadHours === undefined) continue;
+
+      const effectiveLeadHours = task.notificationLeadHours;
       const leadTimeMs = effectiveLeadHours * 60 * 60 * 1000;
       const windowStart = new Date(task.dueDate.getTime() - leadTimeMs);
 

@@ -191,7 +191,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         if (wantNotification && notificationLeadHours !== null) {
           input.notificationLeadHours = notificationLeadHours;
         } else {
-          input.notificationLeadHours = 0;
+          input.notificationLeadHours = null; // explicitly clear — no notification
         }
         const updatedTask = await taskApi.updateTask(editTask.id, input);
         onCreated(updatedTask);
@@ -492,13 +492,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   }
                 }}
               />
-              Notify me before due date
+              Send notification when due
             </label>
           </div>
 
           {wantNotification && (
             <div className="form-group">
-              <label htmlFor="task-notification-lead">Notify before (hours)</label>
+              <label htmlFor="task-notification-lead">Notify early (hours before due)</label>
               <input
                 id="task-notification-lead"
                 type="number"
@@ -508,7 +508,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                   const val = e.target.value;
                   setNotificationLeadHours(val === '' ? null : Math.max(0, parseInt(val) || 0));
                 }}
-                placeholder="0 = when due"
+                placeholder="0 = at due time"
                 style={{ width: '120px' }}
               />
             </div>

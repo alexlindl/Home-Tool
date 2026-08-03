@@ -2,6 +2,11 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.2.3] - 2026-08-03
+
+### Fixed
+- Notifications were sent for ALL tasks with due dates, even those without "Notify me" enabled. Now only tasks with notificationLeadHours explicitly set (via the checkbox in TaskForm) trigger notifications.
+
 ## [1.2.2] - 2026-08-03
 
 ### Fixed
