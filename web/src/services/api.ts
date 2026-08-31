@@ -306,6 +306,20 @@ export const shoppingApi = {
 // Admin API
 // ---------------------------------------------------------------------------
 
+/**
+ * Build request config carrying the admin shared secret when configured.
+ *
+ * The backend admin guard is opt-in: if ADMIN_API_SECRET is unset on the
+ * server, the header is ignored. When VITE_ADMIN_API_SECRET is provided at
+ * build/runtime, it is sent as X-Admin-Secret so the Settings UI keeps working
+ * against a guarded backend.
+ */
+function adminRequestConfig(extra?: Record<string, unknown>): Record<string, unknown> {
+  const secret = import.meta.env.VITE_ADMIN_API_SECRET;
+  const headers = secret ? { 'X-Admin-Secret': secret } : undefined;
+  return { ...(extra ?? {}), ...(headers ? { headers } : {}) };
+}
+
 export const adminApi = {
   /** Reset database with options */
   async resetDatabase(options: {
@@ -317,13 +331,14 @@ export const adminApi = {
     const response = await apiClient.post<{ message: string; cleared: string[] }>(
       '/admin/reset',
       options,
+      adminRequestConfig(),
     );
     return response.data;
   },
 
   /** Get current server config */
   async getConfig(): Promise<{ port: number }> {
-    const response = await apiClient.get<{ port: number }>('/admin/config');
+    const response = await apiClient.get<{ port: number }>('/admin/config', adminRequestConfig());
     return response.data;
   },
 
@@ -332,19 +347,24 @@ export const adminApi = {
     const response = await apiClient.put<{ message: string; port: number; restartRequired: boolean }>(
       '/admin/config',
       config,
+      adminRequestConfig(),
     );
     return response.data;
   },
 
   /** Export full database backup as JSON blob */
   async exportBackup(): Promise<Blob> {
-    const response = await apiClient.get('/admin/backup', { responseType: 'blob' });
+    const response = await apiClient.get('/admin/backup', adminRequestConfig({ responseType: 'blob' }));
     return response.data;
   },
 
   /** Import a backup JSON file */
   async importBackup(data: unknown): Promise<{ message: string }> {
-    const response = await apiClient.post<{ message: string }>('/admin/restore', { data, confirm: true });
+    const response = await apiClient.post<{ message: string }>(
+      '/admin/restore',
+      { data, confirm: true },
+      adminRequestConfig(),
+    );
     return response.data;
   },
 };

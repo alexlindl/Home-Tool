@@ -18,6 +18,7 @@ import activityRoutes from './routes/activityRoutes';
 import authRoutes from './routes/authRoutes';
 import userSettingsRoutes from './routes/userSettingsRoutes';
 import { sanitizeStrings } from './middleware/validation';
+import { requireAdminSecret } from './middleware/adminAuth';
 import { initializeWebSocket } from './websocket';
 import { reminderService } from './services';
 
@@ -86,7 +87,7 @@ app.get('/health/db', async (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Household Management API',
-    version: '1.3.0',
+    version: '1.3.1',
     endpoints: {
       health: '/health',
       healthDb: '/health/db',
@@ -99,7 +100,7 @@ app.get('/', (_req: Request, res: Response) => {
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/shopping', shoppingRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', requireAdminSecret, adminRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/task-lists', taskListRoutes);
 app.use('/api/shopping-lists', shoppingListRoutes);

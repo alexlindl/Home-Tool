@@ -27,6 +27,16 @@ export DB_USER
 LOG_LEVEL=$(bashio::config 'log_level')
 export LOG_LEVEL
 
+# Read optional admin API secret. When set, the backend requires a matching
+# X-Admin-Secret header on /api/admin/* (backup, restore, reset, factory-reset,
+# config). When left blank/unset, bashio returns "null" and the guard stays
+# disabled so existing behavior is unchanged.
+ADMIN_API_SECRET=$(bashio::config 'admin_api_secret')
+if [ "$ADMIN_API_SECRET" = "null" ]; then
+    ADMIN_API_SECRET=""
+fi
+export ADMIN_API_SECRET
+
 # ============================================================================
 # PostgreSQL Setup
 # ============================================================================

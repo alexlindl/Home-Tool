@@ -2,6 +2,16 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.3.1] - 2026-08-31
+
+### Added
+- Optional admin API guard: the destructive admin endpoints (backup, restore, reset, factory-reset, config) can now require a shared secret
+- New `admin_api_secret` add-on option; when set, `/api/admin/*` requests must include a matching `X-Admin-Secret` header
+
+### Security
+- Admin endpoints are unprotected by default only when no secret is configured; setting `admin_api_secret` blocks unauthenticated access (e.g. from other devices on the network or via the direct port)
+- Secret comparison uses a constant-time check to avoid timing side channels
+
 ## [1.3.0] - 2026-08-04
 
 ### Added
