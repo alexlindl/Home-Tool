@@ -10,11 +10,17 @@ import {
   getCategoryByName,
   createCategory,
   updateCategory,
+  updateCategorySortPosition,
+  reorderCategories,
+  UnknownCategoryError,
   deleteCategory,
 } from '../db/categoryQueries';
 import { query } from '../db/connection';
 
 const router = Router();
+
+/** Maximum value storable in a PostgreSQL INTEGER column. */
+const MAX_SORT_POSITION = 2147483647;
 
 /**
  * GET /api/categories
@@ -98,6 +104,129 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to create category',
+    });
+  }
+});
+
+/**
+ * PUT /api/categories/reorder
+ * Atomically reorder categories.
+ *
+ * IMPORTANT: This route MUST be registered before the `/:id`-parameterized
+ * routes below so Express does not treat the literal "reorder" as an `:id`.
+ *
+ * Request body:
+ * { "orderedIds": ["<id>", "<id>", ...] }
+ *
+ * Responses:
+ * - 400 when orderedIds is missing, not an array, empty, contains a non-string
+ *   or empty-string id, or contains duplicate ids (all positions unchanged)
+ * - 400 when any id is unknown (all positions unchanged; verified before write)
+ * - 200 with { "categories": [...] } in resulting ascending sort_position order
+ */
+router.put('/reorder', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { orderedIds } = req.body;
+
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      res.status(400).json({
+        status: 'error',
+        message: 'orderedIds is required and must be a non-empty array',
+      });
+      return;
+    }
+
+    if (
+      orderedIds.some(
+        (id) => typeof id !== 'string' || id.trim().length === 0
+      )
+    ) {
+      res.status(400).json({
+        status: 'error',
+        message: 'orderedIds must contain only non-empty string identifiers',
+      });
+      return;
+    }
+
+    if (new Set(orderedIds).size !== orderedIds.length) {
+      res.status(400).json({
+        status: 'error',
+        message: 'orderedIds must not contain duplicate identifiers',
+      });
+      return;
+    }
+
+    try {
+      const categories = await reorderCategories(orderedIds as string[]);
+      res.status(200).json({ categories });
+    } catch (reorderError) {
+      if (reorderError instanceof UnknownCategoryError) {
+        res.status(400).json({
+          status: 'error',
+          message: 'One or more category identifiers do not exist',
+        });
+        return;
+      }
+      throw reorderError;
+    }
+  } catch (error) {
+    console.error('Error reordering categories:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to reorder categories',
+    });
+  }
+});
+
+/**
+ * PUT /api/categories/:id/position
+ * Update a single category's sort_position
+ *
+ * Request body:
+ * { "sortPosition": 5 }
+ *
+ * Responses:
+ * - 400 when sortPosition is missing, non-numeric, non-integer, negative, or
+ *   greater than 2,147,483,647 (target category unchanged)
+ * - 404 when the id does not exist (all positions unchanged)
+ * - 200 with { "category": { ...includes sortPosition } } on success
+ */
+router.put('/:id/position', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    const { sortPosition } = req.body;
+
+    if (
+      sortPosition === undefined ||
+      sortPosition === null ||
+      typeof sortPosition !== 'number' ||
+      !Number.isInteger(sortPosition) ||
+      sortPosition < 0 ||
+      sortPosition > MAX_SORT_POSITION
+    ) {
+      res.status(400).json({
+        status: 'error',
+        message:
+          'The sortPosition value is invalid; it must be an integer between 0 and 2147483647',
+      });
+      return;
+    }
+
+    const category = await updateCategorySortPosition(id, sortPosition);
+    if (!category) {
+      res.status(404).json({
+        status: 'error',
+        message: `Category with ID ${id} not found`,
+      });
+      return;
+    }
+
+    res.status(200).json({ category });
+  } catch (error) {
+    console.error('Error updating category position:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update category position',
     });
   }
 });

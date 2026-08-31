@@ -108,6 +108,19 @@ export interface TaskHistory {
 export type Category = string;
 
 /**
+ * Structured category record as returned by GET /api/categories.
+ * Mirrors the API contract; `sortPosition` is a required non-negative integer
+ * defining the ascending display order of categories.
+ */
+export interface CategoryRecord {
+  id: string;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+  sortPosition: number; // required non-negative integer
+}
+
+/**
  * Shopping item model
  */
 export interface ShoppingItem {

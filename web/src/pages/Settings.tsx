@@ -6,7 +6,7 @@
  * Requirements: 16.1, 17.1, 18.1, 19.1, 20.1
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   userApi,
@@ -633,6 +633,9 @@ const DatabaseManagement: React.FC = () => {
 // CategoryManagement
 // ===========================================================================
 
+// Reject an order change that does not complete within this many milliseconds (Req 6.5).
+const REORDER_TIMEOUT_MS = 10000;
+
 const CategoryManagement: React.FC = () => {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -641,6 +644,9 @@ const CategoryManagement: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+  // Guards against overlapping reorder requests clobbering each other's revert state.
+  const reorderInFlight = useRef(false);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -665,6 +671,63 @@ const CategoryManagement: React.FC = () => {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to add category';
       setError(msg);
+    }
+  };
+
+  /**
+   * Move the category at `index` up (delta -1) or down (delta +1), persist the new
+   * order, and reconcile with the server.
+   *
+   * - Computes a new orderedIds sequence and calls categoryApi.reorder within 1s
+   *   of the click (Req 6.3). The API call is issued synchronously here.
+   * - On success, the displayed list is refreshed from the returned payload (Req 6.4).
+   * - On rejection or a >10s timeout, the pre-change order is restored and an error
+   *   message is shown (Req 6.5).
+   */
+  const handleMove = async (index: number, delta: number) => {
+    if (reorderInFlight.current) return;
+
+    const target = index + delta;
+    if (target < 0 || target >= categories.length) return;
+
+    const previousOrder = categories;
+    const moved = previousOrder[index];
+    const neighbor = previousOrder[target];
+    if (!moved || !neighbor) return;
+
+    // Compute the optimistic new order by swapping the two rows.
+    const nextOrder = [...previousOrder];
+    nextOrder[index] = neighbor;
+    nextOrder[target] = moved;
+
+    const orderedIds = nextOrder.map((cat) => cat.id);
+
+    reorderInFlight.current = true;
+    setReordering(true);
+    setError('');
+    setCategories(nextOrder);
+
+    // Race the request against an explicit 10-second timeout (Req 6.5).
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('timeout')), REORDER_TIMEOUT_MS);
+    });
+
+    try {
+      const updated = await Promise.race([categoryApi.reorder(orderedIds), timeout]);
+      // Refresh the displayed list from the persisted order the API returned (Req 6.4).
+      setCategories(updated);
+    } catch (err: unknown) {
+      // Revert to the order shown before the change was attempted (Req 6.5).
+      setCategories(previousOrder);
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to reorder categories';
+      setError(msg);
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      reorderInFlight.current = false;
+      setReordering(false);
     }
   };
 
@@ -698,7 +761,7 @@ const CategoryManagement: React.FC = () => {
       {error && <p className="error-state">{error}</p>}
 
       <div className="settings-list">
-        {categories.map((cat) => (
+        {categories.map((cat, index) => (
           <div key={cat.id} className="settings-list-item">
             {editingId === cat.id ? (
               <div className="settings-inline-edit">
@@ -714,6 +777,26 @@ const CategoryManagement: React.FC = () => {
               </div>
             ) : (
               <>
+                <div className="settings-list-reorder">
+                  <button
+                    className="btn btn--text"
+                    aria-label={`Move ${cat.name} up`}
+                    title="Move up"
+                    disabled={index === 0 || reordering}
+                    onClick={() => handleMove(index, -1)}
+                  >
+                    ▲
+                  </button>
+                  <button
+                    className="btn btn--text"
+                    aria-label={`Move ${cat.name} down`}
+                    title="Move down"
+                    disabled={index === categories.length - 1 || reordering}
+                    onClick={() => handleMove(index, 1)}
+                  >
+                    ▼
+                  </button>
+                </div>
                 <span className="settings-list-name">
                   {cat.name}
                   {cat.is_default && <span className="settings-badge">default</span>}
@@ -1485,7 +1568,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.2.3';
+const APP_VERSION = '1.3.0';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);

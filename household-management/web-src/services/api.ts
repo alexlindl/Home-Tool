@@ -385,6 +385,7 @@ export interface CategoryRecord {
   name: string;
   is_default: boolean;
   created_at: string;
+  sortPosition: number; // required non-negative integer, mirrors API sort_position
 }
 
 export const categoryApi = {
@@ -404,6 +405,24 @@ export const categoryApi = {
   async update(id: string, name: string): Promise<CategoryRecord> {
     const response = await apiClient.put<{ category: CategoryRecord }>(`/categories/${id}`, { name });
     return response.data.category;
+  },
+
+  /** Update a single category's sort position */
+  async updatePosition(id: string, sortPosition: number): Promise<CategoryRecord> {
+    const response = await apiClient.put<{ category: CategoryRecord }>(
+      `/categories/${id}/position`,
+      { sortPosition },
+    );
+    return response.data.category;
+  },
+
+  /** Reorder categories: assign positions matching the submitted id sequence */
+  async reorder(orderedIds: string[]): Promise<CategoryRecord[]> {
+    const response = await apiClient.put<{ categories: CategoryRecord[] }>(
+      '/categories/reorder',
+      { orderedIds },
+    );
+    return response.data.categories;
   },
 
   /** Delete a category */

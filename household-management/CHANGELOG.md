@@ -2,6 +2,23 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.3.0] - 2026-08-04
+
+### Added
+- Category ordering: shopping categories now have a persistent, user-controllable sort position
+- Settings > Categories shows move up/down controls to reorder categories; changes are saved immediately and revert on failure
+- New category API endpoints: `PUT /api/categories/:id/position` (set one category's position) and `PUT /api/categories/reorder` (atomic bulk reorder)
+- Categories API responses now include a `sortPosition` field
+- Newly created categories are appended to the end of the order automatically
+
+### Changed
+- Shopping list now groups items by the configured category order instead of a hardcoded list; "Uncategorized" always appears last and empty groups are hidden
+- Categories are returned ordered by `sort_position` (with a case-insensitive name tie-break) from `GET /api/categories`
+- If category ordering is unavailable, the shopping list falls back to a single "Uncategorized" group with a visible indication
+
+### Database
+- Migration 012 adds a `sort_position` column to `categories` (non-negative, NOT NULL) and back-fills existing categories in supermarket-layout order, then remaining defaults and custom categories; the migration is idempotent
+
 ## [1.2.3] - 2026-08-03
 
 ### Fixed

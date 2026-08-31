@@ -28,7 +28,20 @@ import type {
 // Axios instance
 // ---------------------------------------------------------------------------
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Detect base path for ingress: use the current page's directory as base for API calls.
+// Under HA ingress the page loads at /api/hassio_ingress/<token>/ and API lives at ./api/
+// Under direct access the page loads at / and API lives at /api/
+function detectApiBase(): string {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  // Get the pathname directory (ensures trailing slash)
+  const pathname = window.location.pathname;
+  const base = pathname.endsWith('/') ? pathname : pathname.substring(0, pathname.lastIndexOf('/') + 1);
+  return `${base}api`;
+}
+
+const BASE_URL = detectApiBase();
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: BASE_URL,
@@ -372,6 +385,7 @@ export interface CategoryRecord {
   name: string;
   is_default: boolean;
   created_at: string;
+  sortPosition: number; // required non-negative integer, mirrors API sort_position
 }
 
 export const categoryApi = {
@@ -391,6 +405,24 @@ export const categoryApi = {
   async update(id: string, name: string): Promise<CategoryRecord> {
     const response = await apiClient.put<{ category: CategoryRecord }>(`/categories/${id}`, { name });
     return response.data.category;
+  },
+
+  /** Update a single category's sort position */
+  async updatePosition(id: string, sortPosition: number): Promise<CategoryRecord> {
+    const response = await apiClient.put<{ category: CategoryRecord }>(
+      `/categories/${id}/position`,
+      { sortPosition },
+    );
+    return response.data.category;
+  },
+
+  /** Reorder categories: assign positions matching the submitted id sequence */
+  async reorder(orderedIds: string[]): Promise<CategoryRecord[]> {
+    const response = await apiClient.put<{ categories: CategoryRecord[] }>(
+      '/categories/reorder',
+      { orderedIds },
+    );
+    return response.data.categories;
   },
 
   /** Delete a category */

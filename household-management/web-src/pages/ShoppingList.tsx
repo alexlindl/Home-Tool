@@ -15,19 +15,11 @@ import { AddItemForm } from '@/components/AddItemForm';
 import { EditShoppingItemForm } from '@/components/EditShoppingItemForm';
 import { ListSelector } from '@/components/ListSelector';
 import { MoveToListModal } from '@/components/MoveToListModal';
-import { shoppingListApi, shoppingApi, userApi, userSettingsApi } from '@/services/api';
+import { shoppingListApi, shoppingApi, userApi, userSettingsApi, categoryApi } from '@/services/api';
+import type { CategoryRecord } from '@/services/api';
 import { useUndoSnackbar } from '@/contexts/UndoSnackbarContext';
+import { buildCategoryGroups } from './shoppingListGrouping';
 import type { ShoppingItem, ShoppingList as ShoppingListType, Category, User } from '@/types';
-
-const categoryOrder: Category[] = [
-  'produce',
-  'dairy',
-  'bakery',
-  'meat',
-  'frozen',
-  'pantry',
-  'household',
-];
 
 const categoryLabels: Record<string, string> = {
   produce: '🥬 Produce',
@@ -70,6 +62,35 @@ export const ShoppingList: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [defaultSaved, setDefaultSaved] = useState(false);
+
+  // Category ordering, driven by the Category API (sortPosition).
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [categoryOrderUnavailable, setCategoryOrderUnavailable] = useState(false);
+
+  // Load categories so groups can be ordered by their configured sortPosition.
+  // On failure or empty results, fall back to a single "uncategorized" group
+  // and surface an unavailable indication.
+  const loadCategories = useCallback(() => {
+    categoryApi
+      .getAll()
+      .then((cats) => {
+        if (cats.length === 0) {
+          setCategories([]);
+          setCategoryOrderUnavailable(true);
+        } else {
+          setCategories(cats);
+          setCategoryOrderUnavailable(false);
+        }
+      })
+      .catch(() => {
+        setCategories([]);
+        setCategoryOrderUnavailable(true);
+      });
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   // Load lists and set default from user preference (skip default if listId came from deep link)
   useEffect(() => {
@@ -138,33 +159,13 @@ export const ShoppingList: React.FC = () => {
     return unpurchased.filter((item) => item.name.toLowerCase().includes(query));
   }, [items, debouncedSearch]);
 
-  const groupedItems = useMemo(() => {
-    const groups: Record<string, ShoppingItem[]> = {};
-    // Initialize known categories
-    for (const cat of categoryOrder) {
-      groups[cat] = [];
-    }
-    for (const item of searchFilteredItems) {
-      if (!groups[item.category]) {
-        groups[item.category] = [];
-      }
-      groups[item.category]!.push(item);
-    }
-    return groups;
-  }, [searchFilteredItems]);
-
-  // Build display order: known categories first, then custom ones, "uncategorized" always last
-  const displayOrder = useMemo(() => {
-    const customCategories = Object.keys(groupedItems).filter(
-      (cat) => !categoryOrder.includes(cat) && cat !== 'uncategorized' && groupedItems[cat]!.length > 0
-    );
-    const order = [...categoryOrder, ...customCategories];
-    // Always push "uncategorized" to the end if it has items
-    if (groupedItems['uncategorized'] && groupedItems['uncategorized'].length > 0) {
-      order.push('uncategorized');
-    }
-    return order;
-  }, [groupedItems]);
+  // Build ordered, non-empty category groups from the API sortPosition.
+  // When categories are unavailable, `categories` is empty, so every item
+  // folds into the "uncategorized" group.
+  const categoryGroups = useMemo(
+    () => buildCategoryGroups(searchFilteredItems, categories),
+    [searchFilteredItems, categories],
+  );
 
   const toggleCategory = (category: Category) => {
     setCollapsedCategories((prev) => {
@@ -214,7 +215,9 @@ export const ShoppingList: React.FC = () => {
     refreshList();
     // Re-fetch lists to keep canMove accurate
     shoppingListApi.getAll().then(setShoppingLists).catch(() => {});
-  }, [refreshList]);
+    // Re-fetch categories so the group order reflects the newest positions
+    loadCategories();
+  }, [refreshList, loadCategories]);
 
   const handleSetAsDefault = async () => {
     if (!currentUser) return;
@@ -313,11 +316,14 @@ export const ShoppingList: React.FC = () => {
         </div>
       )}
 
-      <div className="category-groups">
-        {displayOrder.map((category) => {
-          const categoryItems = groupedItems[category] || [];
-          if (categoryItems.length === 0) return null;
+      {categoryOrderUnavailable && !loading && searchFilteredItems.length > 0 && (
+        <div className="category-order-unavailable" role="status" aria-live="polite">
+          Category ordering unavailable
+        </div>
+      )}
 
+      <div className="category-groups">
+        {categoryGroups.map(({ category, items: categoryItems }) => {
           const isCollapsed = collapsedCategories.has(category);
           const label = categoryLabels[category] || `📦 ${category.charAt(0).toUpperCase() + category.slice(1)}`;
 

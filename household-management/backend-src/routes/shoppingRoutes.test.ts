@@ -56,13 +56,13 @@ describe('Shopping API Routes', () => {
 
     // Mock getAllCategories to return valid categories for all route tests
     (categoryQueries.getAllCategories as jest.Mock).mockResolvedValue([
-      { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
-      { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
-      { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
-      { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
-      { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
-      { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
-      { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
+      { id: 'cat-1', name: 'produce', isDefault: true, sortPosition: 0, createdAt: new Date('2024-01-01') },
+      { id: 'cat-2', name: 'dairy', isDefault: true, sortPosition: 1, createdAt: new Date('2024-01-01') },
+      { id: 'cat-3', name: 'bakery', isDefault: true, sortPosition: 2, createdAt: new Date('2024-01-01') },
+      { id: 'cat-4', name: 'meat', isDefault: true, sortPosition: 3, createdAt: new Date('2024-01-01') },
+      { id: 'cat-5', name: 'frozen', isDefault: true, sortPosition: 4, createdAt: new Date('2024-01-01') },
+      { id: 'cat-6', name: 'pantry', isDefault: true, sortPosition: 5, createdAt: new Date('2024-01-01') },
+      { id: 'cat-7', name: 'household', isDefault: true, sortPosition: 6, createdAt: new Date('2024-01-01') },
     ]);
   });
 

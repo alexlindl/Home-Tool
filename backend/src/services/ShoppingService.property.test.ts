@@ -42,18 +42,18 @@ const CUSTOM_DB_CATEGORIES = ['drinks', 'snacks', 'toiletries', 'cleaning', 'pet
 
 /** All categories that exist in the DB (defaults + custom) */
 const ALL_DB_CATEGORIES = [
-  { id: 'cat-1', name: 'produce', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-2', name: 'dairy', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-3', name: 'bakery', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-4', name: 'meat', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-5', name: 'frozen', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-6', name: 'pantry', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-7', name: 'household', isDefault: true, createdAt: new Date('2024-01-01') },
-  { id: 'cat-8', name: 'drinks', isDefault: false, createdAt: new Date('2024-02-01') },
-  { id: 'cat-9', name: 'snacks', isDefault: false, createdAt: new Date('2024-02-01') },
-  { id: 'cat-10', name: 'toiletries', isDefault: false, createdAt: new Date('2024-02-01') },
-  { id: 'cat-11', name: 'cleaning', isDefault: false, createdAt: new Date('2024-02-01') },
-  { id: 'cat-12', name: 'pets', isDefault: false, createdAt: new Date('2024-02-01') },
+  { id: 'cat-1', name: 'produce', isDefault: true, sortPosition: 0, createdAt: new Date('2024-01-01') },
+  { id: 'cat-2', name: 'dairy', isDefault: true, sortPosition: 1, createdAt: new Date('2024-01-01') },
+  { id: 'cat-3', name: 'bakery', isDefault: true, sortPosition: 2, createdAt: new Date('2024-01-01') },
+  { id: 'cat-4', name: 'meat', isDefault: true, sortPosition: 3, createdAt: new Date('2024-01-01') },
+  { id: 'cat-5', name: 'frozen', isDefault: true, sortPosition: 4, createdAt: new Date('2024-01-01') },
+  { id: 'cat-6', name: 'pantry', isDefault: true, sortPosition: 5, createdAt: new Date('2024-01-01') },
+  { id: 'cat-7', name: 'household', isDefault: true, sortPosition: 6, createdAt: new Date('2024-01-01') },
+  { id: 'cat-8', name: 'drinks', isDefault: false, sortPosition: 7, createdAt: new Date('2024-02-01') },
+  { id: 'cat-9', name: 'snacks', isDefault: false, sortPosition: 8, createdAt: new Date('2024-02-01') },
+  { id: 'cat-10', name: 'toiletries', isDefault: false, sortPosition: 9, createdAt: new Date('2024-02-01') },
+  { id: 'cat-11', name: 'cleaning', isDefault: false, sortPosition: 10, createdAt: new Date('2024-02-01') },
+  { id: 'cat-12', name: 'pets', isDefault: false, sortPosition: 11, createdAt: new Date('2024-02-01') },
 ];
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
