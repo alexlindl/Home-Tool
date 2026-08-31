@@ -307,15 +307,31 @@ export const shoppingApi = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve the admin shared secret.
+ *
+ * Priority:
+ * 1. Runtime config injected by the add-on at container start
+ *    (window.__RUNTIME_CONFIG__.ADMIN_API_SECRET, written by run.sh from the
+ *    admin_api_secret add-on option) — no rebuild needed to change it.
+ * 2. Build-time VITE_ADMIN_API_SECRET, for local development.
+ */
+function resolveAdminSecret(): string {
+  const runtime = (window as unknown as {
+    __RUNTIME_CONFIG__?: { ADMIN_API_SECRET?: string };
+  }).__RUNTIME_CONFIG__?.ADMIN_API_SECRET;
+  if (runtime && runtime.length > 0) return runtime;
+  return import.meta.env.VITE_ADMIN_API_SECRET || '';
+}
+
+/**
  * Build request config carrying the admin shared secret when configured.
  *
  * The backend admin guard is opt-in: if ADMIN_API_SECRET is unset on the
- * server, the header is ignored. When VITE_ADMIN_API_SECRET is provided at
- * build/runtime, it is sent as X-Admin-Secret so the Settings UI keeps working
- * against a guarded backend.
+ * server, the header is ignored. When a secret is configured, it is sent as
+ * X-Admin-Secret so the Settings UI keeps working against a guarded backend.
  */
 function adminRequestConfig(extra?: Record<string, unknown>): Record<string, unknown> {
-  const secret = import.meta.env.VITE_ADMIN_API_SECRET;
+  const secret = resolveAdminSecret();
   const headers = secret ? { 'X-Admin-Secret': secret } : undefined;
   return { ...(extra ?? {}), ...(headers ? { headers } : {}) };
 }

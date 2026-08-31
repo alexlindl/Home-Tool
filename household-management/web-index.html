@@ -23,6 +23,9 @@
       })();
     </script>
     <div id="root"></div>
+    <!-- Runtime config injected by the add-on at container start (see run.sh).
+         Optional in local dev; the app falls back to build-time env vars. -->
+    <script src="/runtime-config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

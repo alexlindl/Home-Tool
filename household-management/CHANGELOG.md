@@ -2,6 +2,15 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.3.2] - 2026-08-31
+
+### Added
+- Admin API guard is now fully wired end to end: set the `admin_api_secret` add-on option and restart — no rebuild required
+- The web UI reads the secret at runtime (injected by the add-on at container start) and automatically sends it with admin actions (backup, restore, reset, config)
+
+### Changed
+- Frontend resolves the admin secret from runtime config first, then falls back to the build-time `VITE_ADMIN_API_SECRET` for local development
+
 ## [1.3.1] - 2026-08-31
 
 ### Added

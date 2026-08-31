@@ -166,6 +166,20 @@ for i in $(seq 1 30); do
 done
 
 # ============================================================================
+# Runtime frontend config
+# ============================================================================
+# The web bundle is built once at image-build time, but admin_api_secret is a
+# runtime add-on option. We inject it into a small JS file the browser loads
+# before the app, so setting the option + restarting is enough (no rebuild).
+# The value is JSON-encoded so special characters cannot break the script.
+
+echo "[web] Writing runtime-config.js..."
+ADMIN_SECRET_JSON=$(printf '%s' "$ADMIN_API_SECRET" | node -e 'process.stdout.write(JSON.stringify(require("fs").readFileSync(0,"utf8")))')
+cat > /app/web/runtime-config.js <<EOF
+window.__RUNTIME_CONFIG__ = { ADMIN_API_SECRET: ${ADMIN_SECRET_JSON} };
+EOF
+
+# ============================================================================
 # Nginx Setup
 # ============================================================================
 
