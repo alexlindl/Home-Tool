@@ -38,6 +38,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoryError, setCategoryError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [previousCategory, setPreviousCategory] = useState<Category>('uncategorized');
 
   useEffect(() => {
@@ -104,6 +105,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
     if (!name.trim()) return;
 
     setSubmitting(true);
+    setSubmitError('');
     try {
       const effectiveListId = selectedListId || listId;
       const item = await shoppingApi.addItem({
@@ -117,7 +119,7 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
       setCategory('uncategorized');
       onClose();
     } catch {
-      // Error handling
+      setSubmitError('Failed to save item');
     } finally {
       setSubmitting(false);
     }
@@ -136,12 +138,13 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
 
   const handleQuickAdd = async (template: ItemTemplate) => {
     setSubmitting(true);
+    setSubmitError('');
     try {
       const effectiveListId = selectedListId || listId;
       const item = await shoppingApi.addItemFromTemplate(template.id, currentUserId, effectiveListId);
       onAdded(item);
     } catch {
-      // Error handling
+      setSubmitError('Failed to add item');
     } finally {
       setSubmitting(false);
     }
@@ -257,6 +260,12 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
                 ))}
               </select>
             </div>
+          )}
+
+          {submitError && (
+            <p style={{ color: 'var(--color-danger, #e74c3c)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+              {submitError}
+            </p>
           )}
 
           <div className="form-actions">

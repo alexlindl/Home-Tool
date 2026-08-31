@@ -60,6 +60,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       setIsConnected(false);
     });
 
+    // Surface connection/transport errors so a misconfigured VITE_WS_URL is
+    // diagnosable. This does not change the reconnection strategy — Socket.io
+    // keeps retrying per the reconnection options above. Listeners are cleaned
+    // up when socket.disconnect() runs in the effect's return below.
+    socket.on('connect_error', (err: Error) => {
+      console.warn(`WebSocket connect_error: ${err.message} (check VITE_WS_URL)`);
+    });
+
+    socket.on('error', (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`WebSocket error: ${message}`);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;

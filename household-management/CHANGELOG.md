@@ -2,6 +2,18 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.3.3] - 2026-08-31
+
+### Fixed
+- Database restore, factory-reset, and reset now run inside a transaction — a partial failure rolls back instead of leaving the database in a half-wiped state
+- Renaming a category now also updates the items and templates assigned to it, so they no longer become orphaned under the old name
+- Deleting a category now reassigns its items to "uncategorized" (previously they were silently moved into the "household" category)
+- Task reminders and notifications are now de-duplicated per calendar day and re-fire correctly on a new day; the tracking no longer grows unbounded over time
+- Notification dates and "due today" checks now use a consistent local-date basis, fixing possible off-by-one-day reminders on non-UTC servers
+- Shopping item add/edit forms now show an error message when a save or delete fails instead of failing silently
+- Activity log entries with no associated user now display "System" instead of a blank name
+- WebSocket connection errors are now logged to aid diagnosing a misconfigured connection
+
 ## [1.3.2] - 2026-08-31
 
 ### Added

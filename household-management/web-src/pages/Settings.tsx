@@ -1568,7 +1568,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.3.2';
+const APP_VERSION = '1.3.3';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1744,7 +1744,7 @@ const ActivityLog: React.FC = () => {
                 </span>
               </div>
               <div style={{ paddingLeft: 28, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                {users[entry.userId] || 'Unknown user'} — {getEventLabel(entry.type)}
+                {entry.userId ? (users[entry.userId] ?? 'Unknown') : 'System'} — {getEventLabel(entry.type)}
               </div>
             </div>
           ))}

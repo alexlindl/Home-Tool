@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { query } from '../db/connection';
+import { query, getClient } from '../db/connection';
 import fs from 'fs';
 import path from 'path';
 
@@ -43,21 +43,50 @@ router.post('/reset', async (req: Request, res: Response): Promise<void> => {
 
     const cleared: string[] = [];
 
-    if (clearHistory) {
-      await query('DELETE FROM task_history');
-      cleared.push('task_history');
+    // Wrap all DELETE work in a single transaction so a partial failure cannot
+    // corrupt the DB. Follows the getClient BEGIN/COMMIT/ROLLBACK pattern from
+    // categoryQueries.reorderCategories.
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      if (clearHistory) {
+        await client.query('DELETE FROM task_history');
+        cleared.push('task_history');
+      }
+
+      if (clearTasks) {
+        await client.query('DELETE FROM tasks');
+        cleared.push('tasks');
+      }
+
+      if (clearShopping) {
+        await client.query('DELETE FROM shopping_items');
+        cleared.push('shopping_items');
+      }
+
+      // If all three are cleared, also clear non-prepopulated templates
+      if (clearHistory && clearTasks && clearShopping) {
+        await client.query('DELETE FROM task_templates WHERE is_prepopulated = FALSE');
+        await client.query('DELETE FROM item_templates WHERE is_prepopulated = FALSE');
+        cleared.push('custom_templates');
+      }
+
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
     }
 
-    if (clearTasks) {
-      await query('DELETE FROM tasks');
-      cleared.push('tasks');
-    }
-
+    // Log activity for shopping reset (non-fatal, best-effort; kept outside the
+    // transaction so a logging failure cannot abort the reset).
     if (clearShopping) {
-      await query('DELETE FROM shopping_items');
-      cleared.push('shopping_items');
-
-      // Log activity for shopping reset
       try {
         const { userId } = req.body;
         await query(
@@ -67,13 +96,6 @@ router.post('/reset', async (req: Request, res: Response): Promise<void> => {
       } catch (logError) {
         console.error('Failed to log shopping_reset activity:', logError);
       }
-    }
-
-    // If all three are cleared, also clear non-prepopulated templates
-    if (clearHistory && clearTasks && clearShopping) {
-      await query('DELETE FROM task_templates WHERE is_prepopulated = FALSE');
-      await query('DELETE FROM item_templates WHERE is_prepopulated = FALSE');
-      cleared.push('custom_templates');
     }
 
     res.status(200).json({
@@ -213,7 +235,7 @@ router.get('/backup', async (_req: Request, res: Response): Promise<void> => {
     const categories = await query('SELECT * FROM categories');
 
     const backup = {
-      version: '1.3.2',
+      version: '1.3.3',
       exportedAt: new Date().toISOString(),
       data: {
         users: users.rows,
@@ -261,79 +283,99 @@ router.post('/restore', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Clear existing data (order matters for foreign keys)
-    await query('DELETE FROM task_history');
-    await query('DELETE FROM shopping_items');
-    await query('DELETE FROM tasks');
-    await query('DELETE FROM item_templates');
-    await query('DELETE FROM task_templates');
-    await query('DELETE FROM shopping_lists');
-    await query('DELETE FROM task_lists');
-    await query('DELETE FROM categories');
-    await query('DELETE FROM users');
+    // Clear existing data and re-insert from backup inside a single
+    // transaction so a partial failure cannot leave the DB in a corrupt state.
+    // Follows the getClient BEGIN/COMMIT/ROLLBACK pattern from
+    // categoryQueries.reorderCategories.
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    // Re-insert from backup (with original IDs, respecting foreign key order)
-    for (const row of data.users || []) {
-      await query(
-        'INSERT INTO users (id, name, created_at) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.name, row.created_at],
-      );
-    }
+      // Clear existing data (order matters for foreign keys)
+      await client.query('DELETE FROM task_history');
+      await client.query('DELETE FROM shopping_items');
+      await client.query('DELETE FROM tasks');
+      await client.query('DELETE FROM item_templates');
+      await client.query('DELETE FROM task_templates');
+      await client.query('DELETE FROM shopping_lists');
+      await client.query('DELETE FROM task_lists');
+      await client.query('DELETE FROM categories');
+      await client.query('DELETE FROM users');
 
-    for (const row of data.categories || []) {
-      await query(
-        'INSERT INTO categories (id, name, is_default, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.name, row.is_default, row.created_at],
-      );
-    }
+      // Re-insert from backup (with original IDs, respecting foreign key order)
+      for (const row of data.users || []) {
+        await client.query(
+          'INSERT INTO users (id, name, created_at) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.name, row.created_at],
+        );
+      }
 
-    for (const row of data.task_lists || []) {
-      await query(
-        'INSERT INTO task_lists (id, name, is_default, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.name, row.is_default, row.created_at],
-      );
-    }
+      for (const row of data.categories || []) {
+        await client.query(
+          'INSERT INTO categories (id, name, is_default, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.name, row.is_default, row.created_at],
+        );
+      }
 
-    for (const row of data.shopping_lists || []) {
-      await query(
-        'INSERT INTO shopping_lists (id, name, is_default, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.name, row.is_default, row.created_at],
-      );
-    }
+      for (const row of data.task_lists || []) {
+        await client.query(
+          'INSERT INTO task_lists (id, name, is_default, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.name, row.is_default, row.created_at],
+        );
+      }
 
-    for (const row of data.task_templates || []) {
-      await query(
-        'INSERT INTO task_templates (id, title, description, is_prepopulated, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.title, row.description, row.is_prepopulated, row.created_at],
-      );
-    }
+      for (const row of data.shopping_lists || []) {
+        await client.query(
+          'INSERT INTO shopping_lists (id, name, is_default, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.name, row.is_default, row.created_at],
+        );
+      }
 
-    for (const row of data.item_templates || []) {
-      await query(
-        'INSERT INTO item_templates (id, name, category, is_prepopulated, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.name, row.category, row.is_prepopulated, row.created_at],
-      );
-    }
+      for (const row of data.task_templates || []) {
+        await client.query(
+          'INSERT INTO task_templates (id, title, description, is_prepopulated, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.title, row.description, row.is_prepopulated, row.created_at],
+        );
+      }
 
-    for (const row of data.tasks || []) {
-      await query(
-        'INSERT INTO tasks (id, title, description, assigned_to, due_date, is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date, status, created_by, list_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.title, row.description, row.assigned_to, row.due_date, row.is_recurring, row.recurrence_frequency, row.recurrence_interval, row.recurrence_end_date, row.status, row.created_by, row.list_id, row.created_at],
-      );
-    }
+      for (const row of data.item_templates || []) {
+        await client.query(
+          'INSERT INTO item_templates (id, name, category, is_prepopulated, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.name, row.category, row.is_prepopulated, row.created_at],
+        );
+      }
 
-    for (const row of data.shopping_items || []) {
-      await query(
-        'INSERT INTO shopping_items (id, name, category, added_by, is_purchased, purchased_by, list_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.name, row.category, row.added_by, row.is_purchased, row.purchased_by, row.list_id, row.created_at],
-      );
-    }
+      for (const row of data.tasks || []) {
+        await client.query(
+          'INSERT INTO tasks (id, title, description, assigned_to, due_date, is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date, status, created_by, list_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.title, row.description, row.assigned_to, row.due_date, row.is_recurring, row.recurrence_frequency, row.recurrence_interval, row.recurrence_end_date, row.status, row.created_by, row.list_id, row.created_at],
+        );
+      }
 
-    for (const row of data.task_history || []) {
-      await query(
-        'INSERT INTO task_history (id, task_id, title, assigned_to, completed_by, completed_at, was_recurring) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING',
-        [row.id, row.task_id, row.title, row.assigned_to, row.completed_by, row.completed_at, row.was_recurring],
-      );
+      for (const row of data.shopping_items || []) {
+        await client.query(
+          'INSERT INTO shopping_items (id, name, category, added_by, is_purchased, purchased_by, list_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.name, row.category, row.added_by, row.is_purchased, row.purchased_by, row.list_id, row.created_at],
+        );
+      }
+
+      for (const row of data.task_history || []) {
+        await client.query(
+          'INSERT INTO task_history (id, task_id, title, assigned_to, completed_by, completed_at, was_recurring) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING',
+          [row.id, row.task_id, row.title, row.assigned_to, row.completed_by, row.completed_at, row.was_recurring],
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
     }
 
     res.json({ message: 'Restore completed successfully' });
@@ -365,29 +407,37 @@ router.post('/factory-reset', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Delete everything in correct FK order
-    await query('DELETE FROM task_history');
-    await query('DELETE FROM shopping_items');
-    await query('DELETE FROM tasks');
-    await query('DELETE FROM item_templates');
-    await query('DELETE FROM task_templates');
-    await query('DELETE FROM shopping_lists');
-    await query('DELETE FROM task_lists');
-    await query('DELETE FROM categories');
-    await query('DELETE FROM users');
+    // Delete everything and re-seed defaults inside a single transaction so a
+    // partial failure cannot leave the DB in a corrupt state. Follows the
+    // getClient BEGIN/COMMIT/ROLLBACK pattern from
+    // categoryQueries.reorderCategories.
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    // Re-seed default lists
-    await query("INSERT INTO task_lists (name, is_default) SELECT 'Tasks', TRUE WHERE NOT EXISTS (SELECT 1 FROM task_lists WHERE is_default = TRUE)");
-    await query("INSERT INTO shopping_lists (name, is_default) SELECT 'Shopping', TRUE WHERE NOT EXISTS (SELECT 1 FROM shopping_lists WHERE is_default = TRUE)");
+      // Delete everything in correct FK order
+      await client.query('DELETE FROM task_history');
+      await client.query('DELETE FROM shopping_items');
+      await client.query('DELETE FROM tasks');
+      await client.query('DELETE FROM item_templates');
+      await client.query('DELETE FROM task_templates');
+      await client.query('DELETE FROM shopping_lists');
+      await client.query('DELETE FROM task_lists');
+      await client.query('DELETE FROM categories');
+      await client.query('DELETE FROM users');
 
-    // Re-seed default categories
-    const defaultCategories = ['produce', 'dairy', 'bakery', 'meat', 'frozen', 'pantry', 'household', 'drinks', 'snacks', 'toiletries'];
-    for (const cat of defaultCategories) {
-      await query(
-        "INSERT INTO categories (name, is_default) SELECT $1::varchar, TRUE WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = $1::varchar)",
-        [cat],
-      );
-    }
+      // Re-seed default lists
+      await client.query("INSERT INTO task_lists (name, is_default) SELECT 'Tasks', TRUE WHERE NOT EXISTS (SELECT 1 FROM task_lists WHERE is_default = TRUE)");
+      await client.query("INSERT INTO shopping_lists (name, is_default) SELECT 'Shopping', TRUE WHERE NOT EXISTS (SELECT 1 FROM shopping_lists WHERE is_default = TRUE)");
+
+      // Re-seed default categories
+      const defaultCategories = ['produce', 'dairy', 'bakery', 'meat', 'frozen', 'pantry', 'household', 'drinks', 'snacks', 'toiletries'];
+      for (const cat of defaultCategories) {
+        await client.query(
+          "INSERT INTO categories (name, is_default) SELECT $1::varchar, TRUE WHERE NOT EXISTS (SELECT 1 FROM categories WHERE name = $1::varchar)",
+          [cat],
+        );
+      }
 
     // Re-seed default task templates
     const defaultTaskTemplates = [
@@ -408,7 +458,7 @@ router.post('/factory-reset', async (req: Request, res: Response): Promise<void>
       { title: 'Food Shop', description: 'Do the weekly food shop' },
     ];
     for (const t of defaultTaskTemplates) {
-      await query(
+      await client.query(
         "INSERT INTO task_templates (title, description, is_prepopulated) SELECT $1::varchar, $2::text, TRUE WHERE NOT EXISTS (SELECT 1 FROM task_templates WHERE title = $1::varchar)",
         [t.title, t.description],
       );
@@ -452,10 +502,22 @@ router.post('/factory-reset', async (req: Request, res: Response): Promise<void>
       { name: 'Toothpaste', category: 'toiletries' }, { name: 'Deodorant', category: 'toiletries' },
     ];
     for (const item of defaultItemTemplates) {
-      await query(
-        "INSERT INTO item_templates (name, category, is_prepopulated) SELECT $1::varchar, $2::varchar, TRUE WHERE NOT EXISTS (SELECT 1 FROM item_templates WHERE name = $1::varchar)",
-        [item.name, item.category],
-      );
+        await client.query(
+          "INSERT INTO item_templates (name, category, is_prepopulated) SELECT $1::varchar, $2::varchar, TRUE WHERE NOT EXISTS (SELECT 1 FROM item_templates WHERE name = $1::varchar)",
+          [item.name, item.category],
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
     }
 
     res.status(200).json({ message: 'Factory reset completed. All data has been deleted.' });

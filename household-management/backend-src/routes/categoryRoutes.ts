@@ -9,13 +9,11 @@ import {
   getCategoryById,
   getCategoryByName,
   createCategory,
-  updateCategory,
   updateCategorySortPosition,
   reorderCategories,
   UnknownCategoryError,
-  deleteCategory,
 } from '../db/categoryQueries';
-import { query } from '../db/connection';
+import { query, getClient } from '../db/connection';
 
 const router = Router();
 
@@ -276,7 +274,55 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const category = await updateCategory(id, trimmedName);
+    // Rename the category and cascade the new name to the denormalized
+    // category strings on shopping_items and item_templates so items are not
+    // orphaned. All three writes run inside a single transaction so they can't
+    // partially apply. Follows the getClient BEGIN/COMMIT/ROLLBACK pattern from
+    // categoryQueries.reorderCategories.
+    let category = existing;
+    if (trimmedName !== existing.name) {
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
+
+        const renameResult = await client.query(
+          'UPDATE categories SET name = $1 WHERE id = $2 RETURNING *',
+          [trimmedName, id]
+        );
+
+        // Cascade the rename to denormalized category strings.
+        await client.query(
+          'UPDATE shopping_items SET category = $1 WHERE category = $2',
+          [trimmedName, existing.name]
+        );
+        await client.query(
+          'UPDATE item_templates SET category = $1 WHERE category = $2',
+          [trimmedName, existing.name]
+        );
+
+        await client.query('COMMIT');
+
+        const renamedRow = renameResult.rows[0];
+        if (renamedRow) {
+          category = {
+            id: renamedRow.id,
+            name: renamedRow.name,
+            isDefault: renamedRow.is_default,
+            sortPosition: renamedRow.sort_position,
+            createdAt: renamedRow.created_at,
+          };
+        }
+      } catch (txnError) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // Ignore rollback errors; the original error is more meaningful.
+        }
+        throw txnError;
+      } finally {
+        client.release();
+      }
+    }
 
     // Log activity (non-fatal)
     try {
@@ -320,20 +366,46 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Reassign shopping items with this category to "uncategorized"
-    // Use the category name since shopping_items stores category as a string
-    await query(
-      "UPDATE shopping_items SET category = 'household' WHERE category = $1",
-      [existing.name]
-    );
+    // Reassign items/templates to the reserved "uncategorized" sentinel and
+    // delete the category atomically inside a single transaction so they can't
+    // partially apply. Follows the getClient BEGIN/COMMIT/ROLLBACK pattern from
+    // categoryQueries.reorderCategories.
+    let deleted = false;
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    // Also reassign item templates
-    await query(
-      "UPDATE item_templates SET category = 'household' WHERE category = $1",
-      [existing.name]
-    );
+      // Reassign shopping items with this category to "uncategorized"
+      // Use the category name since shopping_items stores category as a string
+      await client.query(
+        "UPDATE shopping_items SET category = 'uncategorized' WHERE category = $1",
+        [existing.name]
+      );
 
-    const deleted = await deleteCategory(id);
+      // Also reassign item templates to "uncategorized"
+      await client.query(
+        "UPDATE item_templates SET category = 'uncategorized' WHERE category = $1",
+        [existing.name]
+      );
+
+      const deleteResult = await client.query(
+        'DELETE FROM categories WHERE id = $1',
+        [id]
+      );
+      deleted = deleteResult.rowCount !== null && deleteResult.rowCount > 0;
+
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
+    }
+
     if (!deleted) {
       res.status(500).json({
         status: 'error',

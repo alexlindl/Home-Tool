@@ -30,8 +30,17 @@ export interface ReminderPayload {
  * and emits WebSocket reminder notifications.
  */
 export class ReminderService {
-  /** Tracks sent reminders to avoid duplicates. Key format: `${taskId}:${type}` */
+  /** Tracks sent reminders to avoid duplicates. Key format: `${taskId}:${type}:${dateStr}` (local date) */
   private sentReminders: Set<string> = new Set();
+
+  /**
+   * The local date (YYYY-MM-DD) that the current `sentReminders` set is scoped
+   * to. When a new day rolls over we clear the set so reminders can re-fire on
+   * the new day, and so the set stays bounded to a single day's keys (avoiding
+   * a slow memory leak). In-memory reset on restart is acceptable now that keys
+   * are date-scoped.
+   */
+  private currentDedupDate: string | null = null;
 
   /** Interval handle for the scheduler */
   private schedulerInterval: ReturnType<typeof setInterval> | null = null;
@@ -48,6 +57,8 @@ export class ReminderService {
    */
   async checkReminders(): Promise<void> {
     const now = new Date();
+
+    this.rolloverDedupIfNewDay(now);
 
     // Read global default lead time (falls back to 0 hours if not set or invalid)
     const globalDefault = await this.getGlobalLeadHours();
@@ -109,6 +120,8 @@ export class ReminderService {
   async checkOverdueTasks(): Promise<void> {
     const now = new Date();
 
+    this.rolloverDedupIfNewDay(now);
+
     const filters: TaskFilters = {
       status: 'pending',
       dueDateTo: now,
@@ -135,7 +148,8 @@ export class ReminderService {
    * @param type The reminder type ('upcoming' or 'overdue')
    */
   async sendReminder(task: Task, type: ReminderType): Promise<void> {
-    const reminderKey = `${task.id}:${type}`;
+    const dateStr = this.formatLocalDate(new Date());
+    const reminderKey = `${task.id}:${type}:${dateStr}`;
 
     // Skip if already sent
     if (this.sentReminders.has(reminderKey)) {
@@ -240,10 +254,37 @@ export class ReminderService {
   }
 
   /**
-   * Check if a reminder has been sent for a given task and type.
+   * Check if a reminder has been sent for a given task and type today.
+   * The dedup key now includes the local date, so this checks against today's
+   * local date string.
    */
   hasReminderBeenSent(taskId: string, type: ReminderType): boolean {
-    return this.sentReminders.has(`${taskId}:${type}`);
+    const dateStr = this.formatLocalDate(new Date());
+    return this.sentReminders.has(`${taskId}:${type}:${dateStr}`);
+  }
+
+  /**
+   * Clear the dedup set when the local calendar day changes since it was last
+   * scoped. Bounds the set to one day's keys and lets reminders re-fire on a
+   * new day. Uses the SAME local-date basis as the reminder key.
+   */
+  private rolloverDedupIfNewDay(now: Date): void {
+    const todayStr = this.formatLocalDate(now);
+    if (todayStr !== this.currentDedupDate) {
+      this.sentReminders.clear();
+      this.currentDedupDate = todayStr;
+    }
+  }
+
+  /**
+   * Format a Date as a LOCAL `YYYY-MM-DD` string (zero-padded), used for the
+   * dedup key and daily rollover so both share the same local-date basis.
+   */
+  private formatLocalDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 }
 

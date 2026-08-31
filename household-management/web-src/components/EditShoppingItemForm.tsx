@@ -33,6 +33,7 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoryError, setCategoryError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [previousCategory, setPreviousCategory] = useState<Category>('produce');
 
   useEffect(() => {
@@ -106,6 +107,7 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
     if (!name.trim() || !item) return;
 
     setSubmitting(true);
+    setSubmitError('');
     try {
       const updated = await shoppingApi.updateItem(item.id, {
         name: name.trim(),
@@ -114,7 +116,7 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
       onSaved(updated);
       onClose();
     } catch {
-      // Error handling
+      setSubmitError('Failed to save item');
     } finally {
       setSubmitting(false);
     }
@@ -123,6 +125,7 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
   const handleDelete = async () => {
     if (!item) return;
     setDeleting(true);
+    setSubmitError('');
     try {
       await shoppingApi.deleteItem(item.id);
       onClose();
@@ -130,7 +133,7 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
         onDeleted();
       }
     } catch {
-      // Error handling
+      setSubmitError('Failed to delete item');
     } finally {
       setDeleting(false);
     }
@@ -213,6 +216,12 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
               </p>
             )}
           </div>
+
+          {submitError && (
+            <p style={{ color: 'var(--color-danger, #e74c3c)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+              {submitError}
+            </p>
+          )}
 
           <div className="form-actions">
             <button

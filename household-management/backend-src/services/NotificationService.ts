@@ -22,6 +22,17 @@ export class NotificationService {
   /** Tracks sent notifications to avoid duplicates. Key: `${taskId}:${type}:${date}:${userId}` */
   private sentNotifications: Set<string> = new Set();
 
+  /**
+   * The local date (YYYY-MM-DD) that the current `sentNotifications` set is
+   * scoped to. When a new day rolls over we clear the set so tasks can
+   * re-notify, and so the set stays bounded to a single day's keys (avoiding a
+   * slow memory leak). In-memory reset on restart is acceptable and actually
+   * SAFER once keys are date-scoped: a restart just means at most one extra
+   * notification per task per day, and the HA-side notificationId dedup further
+   * reduces duplicates.
+   */
+  private currentDedupDate: string | null = null;
+
   /** Timeout for HA API calls in milliseconds */
   private static readonly HA_TIMEOUT_MS = 10_000;
 
@@ -41,6 +52,15 @@ export class NotificationService {
    */
   async checkAndSendNotifications(): Promise<void> {
     const now = new Date();
+
+    // Daily rollover: if the local calendar day changed since the dedup set was
+    // last scoped, clear it. This bounds the set to one day's keys and lets a
+    // new day re-notify. Uses the SAME local-date basis as sendNotification.
+    const todayStr = this.formatLocalDate(now);
+    if (todayStr !== this.currentDedupDate) {
+      this.sentNotifications.clear();
+      this.currentDedupDate = todayStr;
+    }
 
     const linkedUsers = await getLinkedUsers();
     if (linkedUsers.length === 0) return;
@@ -127,7 +147,7 @@ export class NotificationService {
     type: NotificationType,
     today: Date,
   ): Promise<void> {
-    const dateStr = today.toISOString().slice(0, 10);
+    const dateStr = this.formatLocalDate(today);
     const key = `${task.id}:${type}:${dateStr}:${user.id}`;
 
     // Deduplication check
@@ -158,7 +178,7 @@ export class NotificationService {
    * @returns Formatted notification message
    */
   private formatMessage(task: Task, type: NotificationType): string {
-    const dateStr = this.formatDate(task.dueDate!);
+    const dateStr = this.formatLocalDate(task.dueDate!);
 
     if (type === 'due') {
       return `Task "${task.title}" is due today (${dateStr})`;
@@ -167,10 +187,17 @@ export class NotificationService {
   }
 
   /**
-   * Format a date as YYYY-MM-DD for display in notification messages.
+   * Format a Date as a LOCAL `YYYY-MM-DD` string (zero-padded), used for both
+   * the displayed date in messages and the dedup key / daily rollover.
+   * Using local date everywhere keeps the "same calendar day" checks (which
+   * use local getFullYear/getMonth/getDate) consistent with the dedup date and
+   * avoids the off-by-one that UTC `toISOString().slice(0,10)` caused.
    */
-  private formatDate(date: Date): string {
-    return date.toISOString().slice(0, 10);
+  private formatLocalDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   /**
