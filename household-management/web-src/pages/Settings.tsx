@@ -501,7 +501,9 @@ const DefaultListPreference: React.FC = () => {
 
 const DatabaseManagement: React.FC = () => {
   const { currentUser } = useAuth();
-  const [clearHistory, setClearHistory] = useState(false);
+  // Task-history clearing lives in the dedicated "History" section below
+  // (handleClearTaskHistory), so it is intentionally NOT one of the reset
+  // checkboxes here — that avoided a duplicate "Clear Task History" control.
   const [clearTasks, setClearTasks] = useState(false);
   const [clearShopping, setClearShopping] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -515,7 +517,7 @@ const DatabaseManagement: React.FC = () => {
   const [clearingTaskHistory, setClearingTaskHistory] = useState(false);
   const [bringingUpToDate, setBringingUpToDate] = useState(false);
 
-  const nothingSelected = !clearHistory && !clearTasks && !clearShopping;
+  const nothingSelected = !clearTasks && !clearShopping;
 
   // Map an admin request error to a user-facing detail string, surfacing the
   // 401 admin-authorization hint consistent with handleReset above.
@@ -577,14 +579,12 @@ const DatabaseManagement: React.FC = () => {
     try {
       const result = await adminApi.resetDatabase({
         confirm: true,
-        clearHistory: clearHistory || undefined,
         clearTasks: clearTasks || undefined,
         clearShopping: clearShopping || undefined,
       });
       setStatus({ type: 'success', message: `Reset completed. Cleared: ${result.cleared.join(', ')}` });
       setShowConfirm(false);
       setConfirmText('');
-      setClearHistory(false);
       setClearTasks(false);
       setClearShopping(false);
     } catch (err: unknown) {
@@ -614,12 +614,6 @@ const DatabaseManagement: React.FC = () => {
           Select what to clear. User accounts and pre-populated templates are always preserved.
         </p>
 
-        <div className="form-group form-group--inline">
-          <label>
-            <input type="checkbox" checked={clearHistory} onChange={(e) => setClearHistory(e.target.checked)} />
-            Clear Task History
-          </label>
-        </div>
         <div className="form-group form-group--inline">
           <label>
             <input type="checkbox" checked={clearTasks} onChange={(e) => setClearTasks(e.target.checked)} />
@@ -1894,7 +1888,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.4.3';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);

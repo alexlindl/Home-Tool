@@ -2,6 +2,16 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.4.3] - 2026-08-31
+
+### Changed
+- Removed the duplicate "Clear Task History" checkbox from the Database "Reset Selected" section; task history is now cleared only via the dedicated "Clear Task History" button in the History section. The reset section now offers just "Clear All Tasks" and "Clear All Shopping Items"
+
+## [1.4.2] - 2026-08-31
+
+### Fixed
+- Admin actions (clear activity log, clear task history, bring tasks up to date, backup/restore/reset) no longer fail with a spurious "admin authorization required" (401) when the app is opened through Home Assistant ingress. The runtime config script that carries the admin secret was loaded with an absolute path (`/runtime-config.js`), which bypasses the ingress base path and 404s; it is now loaded relative to the ingress base (matching the built assets' `base: './'`), so the admin secret reaches the browser and is sent with admin requests
+
 ## [1.4.1] - 2026-08-31
 
 ### Fixed

@@ -32,7 +32,12 @@ Data persists in the `/data/` directory which is mapped to the add-on's persiste
 | `db_name` | `household_app` | Database name |
 | `db_user` | `household` | Database username |
 | `log_level` | `info` | Log verbosity: `error`, `warn`, `info`, or `debug` |
-| `admin_api_secret` | _(empty)_ | Optional. When set, protects the admin API (backup/restore/reset/config). See below. |
+| `admin_api_secret` | _(empty)_ | Optional. When set, protects the admin API (backup/restore/reset/config/clear-history/bring-up-to-date). See below. |
+| `backup_enabled` | `false` | Enable scheduled automatic backups. See "Scheduled & Encrypted Backups". |
+| `backup_schedule` | `daily` | Scheduled backup frequency: `daily` or `weekly`. |
+| `backup_encryption_enabled` | `false` | Encrypt scheduled backups with AES-256-GCM. |
+| `backup_encryption_key` | _(empty)_ | Secret used to derive the AES-256 key; required when encryption is enabled. |
+| `backup_retention_count` | `7` | Number of scheduled backup files to keep; oldest are pruned. |
 
 ### Changing the Database Password
 
@@ -46,7 +51,8 @@ Data persists in the `/data/` directory which is mapped to the add-on's persiste
 
 The add-on exposes destructive admin endpoints under `/api/admin/*` — full database
 **backup** (which includes all user data), **restore**, **reset**, **factory-reset**,
-and **config**. By default these are **not** protected, which is fine when the app is
+**config**, **clear activity log**, **clear task history**, and **bring tasks up to
+date**. By default these are **not** protected, which is fine when the app is
 only reached through Home Assistant's authenticated ingress. However, the add-on also
 publishes port `8023` directly, so any device on your network can reach these endpoints
 without logging into Home Assistant.
@@ -63,7 +69,9 @@ That's it — no rebuild is needed. Once set:
 - The backend rejects any `/api/admin/*` request that does not include a matching
   `X-Admin-Secret` header (HTTP `401`).
 - The built-in **Settings** screen automatically sends the secret, so backup, restore,
-  reset, and config actions in the UI keep working normally.
+  reset, config, clear-history, and bring-up-to-date actions in the UI keep working
+  normally. (The secret is loaded relative to the ingress path so it reaches the UI
+  whether the app is opened through the HA sidebar or the direct port.)
 - Other devices on your LAN (and direct calls to port `8023`) can no longer trigger
   admin operations without the secret.
 
@@ -79,6 +87,24 @@ To disable the guard again, clear the `admin_api_secret` field and restart.
 >
 > If you script the admin API directly (e.g. curl or an HA REST command), include the
 > header: `-H "X-Admin-Secret: <your secret>"`.
+
+## History & Maintenance Controls
+
+The **Settings → Database** screen provides maintenance actions. These are guarded by
+`admin_api_secret` when it is configured (see above).
+
+- **Reset Selected** — tick **Clear All Tasks** and/or **Clear All Shopping Items**, then
+  confirm, to wipe those tables. User accounts and pre-populated templates are always
+  preserved.
+- **History** — two independent, one-click actions, each with its own confirmation:
+  - **Clear Activity Log** empties the activity feed only; task history is left untouched.
+  - **Clear Task History** empties the completed-task history only; the activity log is
+    left untouched.
+- **Overdue Tasks → Bring Tasks Up To Date** — completes every overdue task in one step.
+  Recurring tasks advance to their next occurrence; non-recurring overdue tasks are marked
+  completed. On success the UI reports how many tasks were completed.
+
+All of these actions are permanent and cannot be undone.
 
 ## Sensor Integration
 
