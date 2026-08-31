@@ -37,6 +37,35 @@ if [ "$ADMIN_API_SECRET" = "null" ]; then
 fi
 export ADMIN_API_SECRET
 
+# Read backup scheduler options. The backend BackupSchedulerService reads these
+# env vars to decide whether/when to run scheduled backups, whether to encrypt
+# them, and how many to retain. Optional string values come back as "null" from
+# bashio when unset, so we normalize those to sensible defaults. The encryption
+# key stays server-side only (never written to runtime-config.js).
+BACKUP_ENABLED=$(bashio::config 'backup_enabled')
+export BACKUP_ENABLED
+
+BACKUP_SCHEDULE=$(bashio::config 'backup_schedule')
+export BACKUP_SCHEDULE
+
+BACKUP_ENCRYPTION_ENABLED=$(bashio::config 'backup_encryption_enabled')
+export BACKUP_ENCRYPTION_ENABLED
+
+BACKUP_ENCRYPTION_KEY=$(bashio::config 'backup_encryption_key')
+if [ "$BACKUP_ENCRYPTION_KEY" = "null" ]; then
+    BACKUP_ENCRYPTION_KEY=""
+fi
+export BACKUP_ENCRYPTION_KEY
+
+BACKUP_RETENTION_COUNT=$(bashio::config 'backup_retention_count')
+export BACKUP_RETENTION_COUNT
+
+# Backups are written to the persistent addon_config mount so they survive
+# restarts. This matches the BackupSchedulerService default.
+BACKUP_DIR="/addon_configs/household-management/backups"
+mkdir -p "$BACKUP_DIR" || true
+export BACKUP_DIR
+
 # ============================================================================
 # PostgreSQL Setup
 # ============================================================================

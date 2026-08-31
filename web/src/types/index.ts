@@ -67,6 +67,7 @@ export interface Task {
   rotationEnabled: boolean; // whether task rotates through users
   rotationUserIds: string[]; // ordered user IDs for rotation
   rotationCurrentIndex: number; // current position in rotation
+  listId?: string; // Task list UUID (which list the task belongs to)
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }
@@ -247,13 +248,27 @@ export interface ApiErrorResponse {
 }
 
 /**
- * Paginated response
+ * Paginated response envelope (cursor-based).
+ * Mirrors the backend `PaginatedResponse<T>` shape returned by the
+ * cursor-paginated Activity_Log, Task_History, and large-list endpoints.
+ * `nextCursor` is an opaque base64 cursor; `null` signals no further pages.
  */
 export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
+  items: T[];
+  nextCursor: string | null;
+  pageSize: number;
+}
+
+/**
+ * Scheduled backup configuration status, as reported by
+ * GET /api/admin/backup/config. Never includes the encryption key value itself.
+ */
+export interface BackupStatus {
+  enabled: boolean;
+  schedule: 'daily' | 'weekly';
+  encryptionEnabled: boolean;
+  hasEncryptionKey: boolean;
+  retentionCount: number;
 }
 
 /**

@@ -77,7 +77,16 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
     setCategoryError('');
     try {
       const created = await categoryApi.create(trimmed);
-      setCategories((prev) => [...prev, created.name]);
+      // Re-fetch so the new category lands at its canonical position
+      // (sort_position ASC, LOWER(name) ASC) rather than at the end of the list.
+      try {
+        const cats = await categoryApi.getAll();
+        const names = cats.map((c) => c.name).filter((n) => n.toLowerCase() !== 'uncategorized');
+        setCategories(names);
+      } catch {
+        // Fall back to appending if the refetch fails, so the new category is still selectable.
+        setCategories((prev) => [...prev, created.name]);
+      }
       setCategory(created.name as Category);
       setShowNewCategory(false);
       setNewCategoryName('');
@@ -198,12 +207,13 @@ export const AddItemForm: React.FC<AddItemFormProps> = ({
               value={showNewCategory ? '__add_new__' : category}
               onChange={handleCategoryChange}
             >
+              {/* Defined placement (AC 1.7): Uncategorized, then canonical categories, then Add new */}
+              <option value="uncategorized">Uncategorized</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c.charAt(0).toUpperCase() + c.slice(1)}
                 </option>
               ))}
-              <option value="uncategorized">Uncategorized</option>
               <option value="__add_new__">+ Add new category...</option>
             </select>
             {showNewCategory && (

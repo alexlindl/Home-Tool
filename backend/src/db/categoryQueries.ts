@@ -202,6 +202,86 @@ export const reorderCategories = async (
 };
 
 /**
+ * Get categories ordered for a specific shopping list.
+ *
+ * Resolves each category's effective position as its per-list sort_position
+ * from list_category_positions when present, falling back to the category's
+ * global sort_position otherwise. Categories are returned ordered by that
+ * effective position ascending, with a case-insensitive name tie-breaker. When
+ * the list has no per-list positions at all, every category falls back to its
+ * global sort_position, i.e. the Canonical_Category_Order. The extra
+ * effective_position column selected by the query is ignored by categoryFromRow.
+ */
+export const getCategoriesForList = async (
+  listId: string
+): Promise<CategoryRecord[]> => {
+  const result = await query(
+    'SELECT c.*, COALESCE(lcp.sort_position, c.sort_position) AS effective_position FROM categories c LEFT JOIN list_category_positions lcp ON lcp.category_id = c.id AND lcp.list_id = $1 ORDER BY effective_position ASC, LOWER(c.name) ASC',
+    [listId]
+  );
+  return result.rows.map((row: CategoryRow) => categoryFromRow(row));
+};
+
+/**
+ * Atomically reorder categories for a specific shopping list.
+ *
+ * Assigns per-list sort_position values 0..k-1 to the supplied orderedIds in
+ * the exact submitted sequence by upserting rows into list_category_positions
+ * for the given listId only, leaving other lists' orders unchanged. The whole
+ * operation runs inside a single transaction: every id in orderedIds is
+ * verified to exist before any write, and if any id is unknown the transaction
+ * is rolled back and an UnknownCategoryError is thrown so that no per-list
+ * position changes. On any other failure the transaction is likewise rolled
+ * back. Returns the categories in this list's resulting effective order after
+ * commit.
+ */
+export const reorderCategoriesForList = async (
+  listId: string,
+  orderedIds: string[]
+): Promise<CategoryRecord[]> => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Verify every submitted id exists before applying any change.
+    const existingResult = await client.query('SELECT id FROM categories');
+    const existingIds = new Set<string>(
+      existingResult.rows.map((row: { id: string }) => row.id)
+    );
+    for (const id of orderedIds) {
+      if (!existingIds.has(id)) {
+        await client.query('ROLLBACK');
+        throw new UnknownCategoryError();
+      }
+    }
+
+    // Upsert per-list positions 0..k-1 for the submitted ids in order,
+    // targeting this listId only.
+    for (let i = 0; i < orderedIds.length; i++) {
+      await client.query(
+        'INSERT INTO list_category_positions (list_id, category_id, sort_position) VALUES ($1, $2, $3) ON CONFLICT (list_id, category_id) DO UPDATE SET sort_position = EXCLUDED.sort_position',
+        [listId, orderedIds[i], i]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (error) {
+    // Roll back on any failure that has not already rolled back. A double
+    // rollback (e.g. after the UnknownCategoryError path) is harmless.
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // Ignore rollback errors; the original error is more meaningful.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return getCategoriesForList(listId);
+};
+
+/**
  * Delete a category
  */
 export const deleteCategory = async (id: string): Promise<boolean> => {

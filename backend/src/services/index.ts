@@ -21,3 +21,10 @@ export {
 } from './SummaryService';
 export { WidgetService, widgetService, WidgetOptions } from './WidgetService';
 export { NotificationService, notificationService, NotificationType } from './NotificationService';
+export {
+  BackupSchedulerService,
+  backupSchedulerService,
+  readBackupConfig,
+  isBackupDue,
+  BackupPayload,
+} from './BackupSchedulerService';

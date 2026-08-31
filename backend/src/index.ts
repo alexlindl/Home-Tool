@@ -20,7 +20,7 @@ import userSettingsRoutes from './routes/userSettingsRoutes';
 import { sanitizeStrings } from './middleware/validation';
 import { requireAdminSecret } from './middleware/adminAuth';
 import { initializeWebSocket } from './websocket';
-import { reminderService } from './services';
+import { reminderService, backupSchedulerService } from './services';
 
 // Load environment variables
 dotenv.config();
@@ -87,7 +87,7 @@ app.get('/health/db', async (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Household Management API',
-    version: '1.3.3',
+    version: '1.4.0',
     endpoints: {
       health: '/health',
       healthDb: '/health/db',
@@ -145,12 +145,16 @@ const server = httpServer.listen(PORT, HOST, () => {
 
   // Start the reminder scheduler
   reminderService.startScheduler();
+
+  // Start the scheduled-backup scheduler (no-op when backups are disabled)
+  backupSchedulerService.startScheduler();
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM signal received: closing HTTP server');
   reminderService.stopScheduler();
+  backupSchedulerService.stopScheduler();
   server.close(() => {
     logger.info('HTTP server closed');
     process.exit(0);
@@ -160,6 +164,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   logger.info('SIGINT signal received: closing HTTP server');
   reminderService.stopScheduler();
+  backupSchedulerService.stopScheduler();
   server.close(() => {
     logger.info('HTTP server closed');
     process.exit(0);

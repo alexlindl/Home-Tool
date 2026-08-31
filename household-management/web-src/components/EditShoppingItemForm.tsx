@@ -15,7 +15,11 @@ interface EditShoppingItemFormProps {
   item: ShoppingItem | null;
   onClose: () => void;
   onSaved: (item: ShoppingItem) => void;
-  onDeleted?: () => void;
+  /**
+   * Called after a successful delete with the full item that was deleted, so
+   * the parent can offer an Undo_Snackbar bound to the captured payload.
+   */
+  onDeleted?: (deletedItem: ShoppingItem) => void;
 }
 
 export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
@@ -79,7 +83,16 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
     setCategoryError('');
     try {
       const created = await categoryApi.create(trimmed);
-      setCategories((prev) => [...prev, created.name]);
+      // Re-fetch so the new category lands at its canonical position
+      // (sort_position ASC, LOWER(name) ASC) rather than at the end of the list.
+      try {
+        const cats = await categoryApi.getAll();
+        const names = cats.map((c) => c.name).filter((n) => n.toLowerCase() !== 'uncategorized');
+        setCategories(names);
+      } catch {
+        // Fall back to appending if the refetch fails, so the new category is still selectable.
+        setCategories((prev) => [...prev, created.name]);
+      }
       setCategory(created.name as Category);
       setShowNewCategory(false);
       setNewCategoryName('');
@@ -124,13 +137,15 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
 
   const handleDelete = async () => {
     if (!item) return;
+    // Capture the full entity payload BEFORE deleting so it can be restored.
+    const deletedItem = item;
     setDeleting(true);
     setSubmitError('');
     try {
-      await shoppingApi.deleteItem(item.id);
+      await shoppingApi.deleteItem(deletedItem.id);
       onClose();
       if (onDeleted) {
-        onDeleted();
+        onDeleted(deletedItem);
       }
     } catch {
       setSubmitError('Failed to delete item');
@@ -171,12 +186,13 @@ export const EditShoppingItemForm: React.FC<EditShoppingItemFormProps> = ({
               value={showNewCategory ? '__add_new__' : category}
               onChange={handleCategoryChange}
             >
+              {/* Defined placement (AC 1.7): Uncategorized, then canonical categories, then Add new */}
+              <option value="uncategorized">Uncategorized</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c.charAt(0).toUpperCase() + c.slice(1)}
                 </option>
               ))}
-              <option value="uncategorized">Uncategorized</option>
               <option value="__add_new__">+ Add new category...</option>
             </select>
             {showNewCategory && (

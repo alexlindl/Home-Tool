@@ -4,6 +4,8 @@
  * template management, and task retrieval.
  */
 
+import type { PoolClient } from 'pg';
+import type { Queryable } from '../db/connection';
 import { Task, TaskHistory, TaskTemplate } from '../models/Task';
 import {
   CreateTaskInput,
@@ -404,8 +406,73 @@ export class TaskService {
    * @throws TaskValidationError if the completing user does not exist
    */
   async completeTask(id: string, userId: string): Promise<void> {
+    // Runs against the connection pool in auto-commit mode. Uses the shared
+    // completion code path with the pool-backed executor (undefined => the
+    // DB layer defaults to the pool `query` helper).
+    await this.performCompletion(id, userId, undefined);
+  }
+
+  /**
+   * Mark a task as complete using a caller-supplied transaction client.
+   *
+   * Performs the identical completion semantics as {@link completeTask}
+   * (write a task_history entry; for recurring tasks advance to the next
+   * occurrence rather than deleting; for non-recurring set status to
+   * `completed`), but routes every read and write through the provided pg
+   * `PoolClient` so the work participates in the caller's
+   * `BEGIN`/`COMMIT`/`ROLLBACK` transaction (Requirements 9.4, 9.5, 9.6).
+   *
+   * Unlike {@link completeTask}, a failure while spawning the next recurring
+   * occurrence is propagated (not swallowed) so the enclosing transaction can
+   * roll back atomically rather than committing a partial completion.
+   *
+   * @param client Transaction-scoped pg PoolClient (already inside BEGIN)
+   * @param id Task UUID
+   * @param userId User ID of the person completing the task
+   * @returns Promise<void>
+   * @throws Error if the task is not found
+   * @throws TaskValidationError if the completing user does not exist
+   */
+  async completeTaskWithClient(client: PoolClient, id: string, userId: string): Promise<void> {
+    // Wrap client.query so it retains its `this` binding when passed as a
+    // plain Queryable function to the DB layer.
+    const executor: Queryable = (text, params) => client.query(text, params);
+    await this.performCompletion(id, userId, executor);
+  }
+
+  /**
+   * Shared task-completion code path used by both {@link completeTask}
+   * (pool / auto-commit) and {@link completeTaskWithClient} (transaction).
+   *
+   * Steps:
+   *  1. Fetch the task and verify it exists.
+   *  2. Verify the completing user exists.
+   *  3. Update the task status to 'completed' with completedAt / completedBy.
+   *  4. Create a TaskHistory entry (Requirements 4.4, 6.1, 6.2).
+   *  5. If the task is recurring, generate the next occurrence based on the
+   *     recurrence pattern (Requirement 4.5).
+   *
+   * @param id Task UUID
+   * @param userId User ID of the person completing the task
+   * @param executor Optional query executor. When omitted, the DB layer runs
+   *   against the connection pool; when provided, all reads/writes run through
+   *   the caller's transaction client. When a transaction executor is used,
+   *   spawn failures are rethrown so the transaction can roll back atomically.
+   */
+  private async performCompletion(
+    id: string,
+    userId: string,
+    executor: Queryable | undefined
+  ): Promise<void> {
+    const transactional = executor !== undefined;
+
     // Step 1 – fetch the task
-    const task = await getTaskById(id);
+    // In pool mode (executor undefined) the DB helpers are invoked with their
+    // original arity so they default to the pool `query`; in transactional
+    // mode the client executor is forwarded as the trailing argument.
+    const exec: [Queryable] | [] = executor ? [executor] : [];
+
+    const task = await getTaskById(id, ...exec);
     if (!task) {
       throw new Error(`Task with ID ${id} not found`);
     }
@@ -419,11 +486,15 @@ export class TaskService {
     const completedAt = new Date();
 
     // Step 2 – mark the task as completed in the DB (Requirement 4.3)
-    await dbUpdateTask(id, {
-      status: 'completed',
-      completedAt,
-      completedBy: userId,
-    });
+    await dbUpdateTask(
+      id,
+      {
+        status: 'completed',
+        completedAt,
+        completedBy: userId,
+      },
+      ...exec
+    );
 
     // Step 3 – create a history entry (Requirements 4.4, 6.1, 6.2)
     await createHistoryEntry(
@@ -432,7 +503,8 @@ export class TaskService {
       task.assignedTo,
       userId,
       completedAt,
-      task.isRecurring
+      task.isRecurring,
+      ...exec
     );
 
     // Step 4 – generate next occurrence for recurring tasks (Requirement 4.5)
@@ -500,10 +572,16 @@ export class TaskService {
             nextDbInput.rotationCurrentIndex = task.rotationCurrentIndex;
           }
 
-          await dbCreateTask(nextDbInput);
+          await dbCreateTask(nextDbInput, ...exec);
         }
       } catch (spawnError) {
-        // Log but don't fail the completion — the task is already marked done
+        // In transactional mode, propagate so the caller can ROLLBACK and no
+        // task is left partially completed (Requirement 9.8). In pool mode,
+        // preserve the existing behavior: the task is already marked done, so
+        // log and continue rather than failing the completion.
+        if (transactional) {
+          throw spawnError;
+        }
         console.error('Failed to spawn next recurring task occurrence:', spawnError);
       }
     }

@@ -6,7 +6,8 @@
 import { Router, Request, Response } from 'express';
 import { taskService } from '../services/TaskService';
 import { TaskValidationError } from '../services/TaskService';
-import { TaskFilters, getBacklogTasks, getTaskById, moveTask } from '../db/taskQueries';
+import { TaskFilters, getBacklogTasks, getTaskById, moveTask, getTaskHistoryPage, TaskHistoryCursor, getTasksPage, TaskListCursor } from '../db/taskQueries';
+import { decodeCursor } from '../utils/cursor';
 import { getTaskListById } from '../db/listQueries';
 import { EnhancedRecurrencePattern, DayOfWeek, RecurrencePatternType } from '../utils/recurrenceEngine';
 import { query } from '../db/connection';
@@ -256,6 +257,115 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
 });
 
 /**
+ * POST /api/tasks/restore
+ * Restore (recreate) a previously deleted task from a full payload including
+ * its original id. Uses INSERT ... ON CONFLICT (id) DO NOTHING so restoring a
+ * task that still exists is a harmless no-op success, and restoring one that
+ * was deleted recreates it with its original id and fields.
+ *
+ * Request body (full task, camelCase or snake_case accepted):
+ * {
+ *   "id": "uuid",
+ *   "title": "Vacuum Living Room",
+ *   "description": "..." | null,
+ *   "assignedTo": "uuid" | null,
+ *   "createdBy": "uuid",
+ *   "dueDate": "..." | null,
+ *   "isRecurring": false,
+ *   "recurrenceFrequency": "weekly" | null,
+ *   "recurrenceInterval": 1 | null,
+ *   "recurrenceEndDate": "..." | null,
+ *   "recurrenceType": "..." | null,
+ *   "recurrenceDayOfWeek": "monday" | null,
+ *   "recurrenceOrdinalWeek": 2 | null,
+ *   "status": "pending" | "completed",
+ *   "listId": "uuid" | null,
+ *   "notificationLeadHours": 3 | null,
+ *   "rotationEnabled": false,
+ *   "rotationUserIds": ["uuid", ...],
+ *   "rotationCurrentIndex": 0,
+ *   "createdAt": "..."
+ * }
+ *
+ * Response: 200 OK
+ * { "message": "Task restored successfully" }
+ *
+ * Response: 400 Bad Request (missing payload)
+ * { "status": "error", "message": "..." }
+ *
+ * NOTE: This route MUST be registered before GET /:id so Express does not
+ * treat the literal string "restore" as a task ID.
+ *
+ * Requirements: 4.6, 4.9, 4.10
+ */
+router.post('/restore', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body ?? {};
+    const id = body.id;
+    const title = body.title;
+    const description = body.description ?? null;
+    const assignedTo = body.assignedTo ?? body.assigned_to ?? null;
+    const createdBy = body.createdBy ?? body.created_by ?? null;
+    const dueDate = body.dueDate ?? body.due_date ?? null;
+    const isRecurring = body.isRecurring ?? body.is_recurring ?? false;
+    const recurrenceFrequency = body.recurrenceFrequency ?? body.recurrence_frequency ?? null;
+    const recurrenceInterval = body.recurrenceInterval ?? body.recurrence_interval ?? null;
+    const recurrenceEndDate = body.recurrenceEndDate ?? body.recurrence_end_date ?? null;
+    const recurrenceType = body.recurrenceType ?? body.recurrence_type ?? null;
+    const recurrenceDayOfWeek = body.recurrenceDayOfWeek ?? body.recurrence_day_of_week ?? null;
+    const recurrenceOrdinalWeek = body.recurrenceOrdinalWeek ?? body.recurrence_ordinal_week ?? null;
+    const status = body.status ?? 'pending';
+    const listId = body.listId ?? body.list_id ?? null;
+    const notificationLeadHours = body.notificationLeadHours ?? body.notification_lead_hours ?? null;
+    const rotationEnabled = body.rotationEnabled ?? body.rotation_enabled ?? false;
+    const rotationUserIds = body.rotationUserIds ?? body.rotation_user_ids ?? [];
+    const rotationCurrentIndex = body.rotationCurrentIndex ?? body.rotation_current_index ?? 0;
+    const createdAt = body.createdAt ?? body.created_at ?? null;
+
+    const missingFields: string[] = [];
+    if (!id) missingFields.push('id');
+    if (!title) missingFields.push('title');
+
+    if (missingFields.length > 0) {
+      res.status(400).json({
+        status: 'error',
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+      });
+      return;
+    }
+
+    await query(
+      `INSERT INTO tasks (
+        id, title, description, assigned_to, created_by, due_date,
+        is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date,
+        recurrence_type, recurrence_day_of_week, recurrence_ordinal_week, status, list_id,
+        notification_lead_hours, rotation_enabled, rotation_user_ids, rotation_current_index, created_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10,
+        $11, $12, $13, $14, $15,
+        $16, $17, $18, $19, COALESCE($20, CURRENT_TIMESTAMP)
+      )
+      ON CONFLICT (id) DO NOTHING`,
+      [
+        id, title, description, assignedTo, createdBy, dueDate,
+        isRecurring, recurrenceFrequency, recurrenceInterval, recurrenceEndDate,
+        recurrenceType, recurrenceDayOfWeek, recurrenceOrdinalWeek, status, listId,
+        notificationLeadHours, rotationEnabled, rotationUserIds, rotationCurrentIndex, createdAt,
+      ]
+    );
+
+    res.status(200).json({ message: 'Task restored successfully' });
+  } catch (error) {
+    console.error('Error restoring task:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to restore task',
+    });
+  }
+});
+
+/**
  * GET /api/tasks/history
  * Get task history for the past N days (default 30)
  *
@@ -296,6 +406,115 @@ router.get('/history', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to fetch task history',
+    });
+  }
+});
+
+/**
+ * GET /api/tasks/history/paginated?limit=<n>&cursor=<opaque>
+ * Cursor-paginated Task_History with a stable (completed_at, id) ordering.
+ *
+ * Query parameters:
+ *   limit  - page size (clamped to max 200, default 50)
+ *   cursor - opaque base64 cursor from a previous response's nextCursor
+ *
+ * Response: 200 OK
+ *   { "items": [ TaskHistory ], "nextCursor": string | null, "pageSize": number }
+ *
+ * A malformed cursor yields 400.
+ *
+ * NOTE: Registered before GET /:id so Express does not treat "history" as an id.
+ */
+router.get('/history/paginated', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { limit, cursor } = req.query;
+
+    let decoded: TaskHistoryCursor | null = null;
+    if (cursor !== undefined && cursor !== '') {
+      try {
+        decoded = decodeCursor<TaskHistoryCursor>(cursor as string);
+      } catch {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid cursor parameter',
+        });
+        return;
+      }
+    }
+
+    const parsedLimit = limit !== undefined ? Number(limit) : undefined;
+    const page = await getTaskHistoryPage(decoded, parsedLimit);
+    res.status(200).json(page);
+  } catch (error) {
+    console.error('Error fetching paginated task history:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch task history',
+    });
+  }
+});
+
+/**
+ * GET /api/tasks/paginated?limit=<n>&cursor=<opaque>
+ * Cursor-paginated task list with a stable (due_date ASC NULLS LAST, id ASC)
+ * ordering.
+ *
+ * Query parameters:
+ *   limit  - page size (clamped to max 200, default 50)
+ *   cursor - opaque base64 cursor from a previous response's nextCursor
+ *   assignedTo, status, listId - optional filters (mirrors GET /api/tasks)
+ *
+ * Response: 200 OK
+ *   { "items": [ Task ], "nextCursor": string | null, "pageSize": number }
+ *
+ * A malformed cursor yields 400.
+ *
+ * NOTE: Registered before GET /:id so Express does not treat "paginated" as an id.
+ */
+router.get('/paginated', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { limit, cursor, assignedTo, status, listId } = req.query;
+
+    if (status && !['pending', 'completed'].includes(status as string)) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Invalid status. Must be one of: pending, completed',
+      });
+      return;
+    }
+
+    let decoded: TaskListCursor | null = null;
+    if (cursor !== undefined && cursor !== '') {
+      try {
+        decoded = decodeCursor<TaskListCursor>(cursor as string);
+      } catch {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid cursor parameter',
+        });
+        return;
+      }
+    }
+
+    const filters: TaskFilters = {};
+    if (assignedTo) {
+      filters.assignedTo = assignedTo as string;
+    }
+    if (status) {
+      filters.status = status as 'pending' | 'completed';
+    }
+    if (listId) {
+      filters.listId = listId as string;
+    }
+
+    const parsedLimit = limit !== undefined ? Number(limit) : undefined;
+    const page = await getTasksPage(decoded, parsedLimit, filters);
+    res.status(200).json(page);
+  } catch (error) {
+    console.error('Error fetching paginated tasks:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch tasks',
     });
   }
 });

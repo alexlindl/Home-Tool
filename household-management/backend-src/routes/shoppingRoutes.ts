@@ -7,9 +7,10 @@ import { Router, Request, Response } from 'express';
 import { shoppingService, ShoppingValidationError } from '../services/ShoppingService';
 import { Category } from '../models/Shopping';
 import { getAllCategories } from '../db/categoryQueries';
-import { searchItemTemplates, searchShoppingItems, getItemById, moveShoppingItem, getRecentPurchases } from '../db/shoppingQueries';
+import { searchItemTemplates, searchShoppingItems, getItemById, moveShoppingItem, getRecentPurchases, getShoppingItemsPage, ShoppingListCursor } from '../db/shoppingQueries';
 import { getShoppingListById } from '../db/listQueries';
 import { query } from '../db/connection';
+import { decodeCursor } from '../utils/cursor';
 
 const router = Router();
 
@@ -114,6 +115,76 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to add shopping item',
+    });
+  }
+});
+
+/**
+ * POST /api/shopping/restore
+ * Restore (recreate) a previously deleted shopping item from a full payload
+ * including its original id. Uses INSERT ... ON CONFLICT (id) DO NOTHING so
+ * restoring an item that still exists is a harmless no-op success, and
+ * restoring one that was deleted recreates it.
+ *
+ * Request body (full shopping item, camelCase or snake_case accepted):
+ * {
+ *   "id": "uuid",
+ *   "name": "Milk",
+ *   "category": "dairy",
+ *   "addedBy": "uuid",
+ *   "isPurchased": false,
+ *   "purchasedBy": "uuid" | null,
+ *   "listId": "uuid" | null,
+ *   "createdAt": "..."
+ * }
+ *
+ * Response: 200 OK
+ * { "message": "Shopping item restored successfully" }
+ *
+ * Response: 400 Bad Request (missing payload)
+ * { "status": "error", "message": "..." }
+ *
+ * Requirements: 4.9, 4.10
+ */
+router.post('/restore', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body ?? {};
+    const id = body.id;
+    const name = body.name;
+    const category = body.category;
+    const addedBy = body.addedBy ?? body.added_by;
+    const isPurchased = body.isPurchased ?? body.is_purchased ?? false;
+    const purchasedBy = body.purchasedBy ?? body.purchased_by ?? null;
+    const listId = body.listId ?? body.list_id ?? null;
+    const createdAt = body.createdAt ?? body.created_at ?? null;
+
+    const missingFields: string[] = [];
+    if (!id) missingFields.push('id');
+    if (!name) missingFields.push('name');
+    if (!category) missingFields.push('category');
+    if (!addedBy) missingFields.push('addedBy');
+
+    if (missingFields.length > 0) {
+      res.status(400).json({
+        status: 'error',
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+      });
+      return;
+    }
+
+    await query(
+      `INSERT INTO shopping_items (id, name, category, added_by, is_purchased, purchased_by, list_id, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, CURRENT_TIMESTAMP))
+       ON CONFLICT (id) DO NOTHING`,
+      [id, name, category, addedBy, isPurchased, purchasedBy, listId, createdAt]
+    );
+
+    res.status(200).json({ message: 'Shopping item restored successfully' });
+  } catch (error) {
+    console.error('Error restoring shopping item:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to restore shopping item',
     });
   }
 });
@@ -449,6 +520,53 @@ router.get('/purchases', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to fetch recent purchases',
+    });
+  }
+});
+
+/**
+ * GET /api/shopping/paginated?limit=<n>&cursor=<opaque>&listId=<id>
+ * Cursor-paginated shopping list (unpurchased items) with a stable
+ * (category ASC, name ASC, id ASC) ordering.
+ *
+ * Query parameters:
+ *   limit  - page size (clamped to max 200, default 50)
+ *   cursor - opaque base64 cursor from a previous response's nextCursor
+ *   listId - optional shopping list filter
+ *
+ * Response: 200 OK
+ *   { "items": [ ShoppingItem ], "nextCursor": string | null, "pageSize": number }
+ *
+ * A malformed cursor yields 400.
+ *
+ * NOTE: Registered before GET /:id so Express does not treat "paginated" as an id.
+ */
+router.get('/paginated', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { limit, cursor, listId } = req.query;
+
+    let decoded: ShoppingListCursor | null = null;
+    if (cursor !== undefined && cursor !== '') {
+      try {
+        decoded = decodeCursor<ShoppingListCursor>(cursor as string);
+      } catch {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid cursor parameter',
+        });
+        return;
+      }
+    }
+
+    const parsedLimit = limit !== undefined ? Number(limit) : undefined;
+    const listIdFilter = listId !== undefined && listId !== '' ? (listId as string) : undefined;
+    const page = await getShoppingItemsPage(decoded, parsedLimit, listIdFilter);
+    res.status(200).json(page);
+  } catch (error) {
+    console.error('Error fetching paginated shopping list:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch shopping list',
     });
   }
 });

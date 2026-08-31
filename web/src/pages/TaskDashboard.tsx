@@ -242,9 +242,46 @@ export const TaskDashboard: React.FC = () => {
     setEditingTask(null);
   };
 
-  const handleDeleted = () => {
+  const handleDeleted = (deletedTask: Task) => {
+    // The task was already deleted (it disappears from the list immediately).
     refreshTasks();
     setEditingTask(null);
+    // Offer an Undo_Snackbar bound to the captured payload. The restore
+    // endpoint recreates the task from its original id via ON CONFLICT DO NOTHING.
+    // Prefer the deleted task's OWN list so undo restores it to where it lived,
+    // regardless of the current list filter (falling back to the selected list,
+    // then null, only when the task carried no list of its own).
+    const listId =
+      deletedTask.listId ??
+      (selectedListId && selectedListId !== 'all' ? selectedListId : null);
+    showUndo({
+      itemName: deletedTask.title,
+      actionDescription: 'Task deleted',
+      onUndo: async () => {
+        await taskApi.restoreTask({
+          id: deletedTask.id,
+          title: deletedTask.title,
+          description: deletedTask.description ?? null,
+          assignedTo: deletedTask.assignedTo,
+          createdBy: deletedTask.createdBy,
+          dueDate: deletedTask.dueDate,
+          isRecurring: deletedTask.isRecurring,
+          recurrenceFrequency: deletedTask.recurrencePattern?.frequency ?? null,
+          recurrenceInterval:
+            deletedTask.recurrencePattern?.interval ?? deletedTask.recurrenceInterval ?? null,
+          recurrenceEndDate: deletedTask.recurrencePattern?.endDate ?? null,
+          recurrenceType: deletedTask.recurrenceType ?? null,
+          status: deletedTask.status,
+          listId,
+          notificationLeadHours: deletedTask.notificationLeadHours ?? null,
+          rotationEnabled: deletedTask.rotationEnabled,
+          rotationUserIds: deletedTask.rotationUserIds,
+          rotationCurrentIndex: deletedTask.rotationCurrentIndex,
+          createdAt: deletedTask.createdAt,
+        });
+        refreshTasks();
+      },
+    });
   };
 
   const handleListRefresh = useCallback(() => {

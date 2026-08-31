@@ -1,6 +1,6 @@
 name: "Household Management"
 description: "Manage household tasks and shopping lists directly from Home Assistant"
-version: "1.3.3"
+version: "1.4.0"
 slug: "household-management"
 url: "https://github.com/alexlindl/Home-Tool"
 arch:
@@ -27,9 +27,19 @@ options:
   db_user: "household"
   log_level: "info"
   admin_api_secret: ""
+  backup_enabled: false
+  backup_schedule: "daily"
+  backup_encryption_enabled: false
+  backup_encryption_key: ""
+  backup_retention_count: 7
 schema:
   db_password: str
   db_name: str
   db_user: str
   log_level: list(error|warn|info|debug)
   admin_api_secret: str?
+  backup_enabled: bool
+  backup_schedule: list(daily|weekly)
+  backup_encryption_enabled: bool
+  backup_encryption_key: str?
+  backup_retention_count: int

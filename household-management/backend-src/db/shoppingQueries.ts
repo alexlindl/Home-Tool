@@ -13,6 +13,18 @@ import {
   itemTemplateFromRow,
   Category,
 } from '../models/Shopping';
+import { PaginatedResponse } from '../models';
+import { encodeCursor, clampLimit } from '../utils/cursor';
+
+/**
+ * Opaque cursor payload for the shopping list keyset pagination.
+ * Encodes the ordering-key tuple (category, name, id) of the last row seen.
+ */
+export interface ShoppingListCursor {
+  category: string;
+  name: string;
+  id: string; // shopping_items row id (tie-break)
+}
 
 /**
  * Input type for adding a new shopping item
@@ -100,6 +112,78 @@ export const getShoppingList = async (category?: Category, listId?: string): Pro
   );
 
   return result.rows.map((row: ShoppingItemRow) => shoppingItemFromRow(row));
+};
+
+/**
+ * Get a bounded page of the shopping list (unpurchased items) using
+ * cursor-based (keyset) pagination.
+ *
+ * Rows are returned in a stable ordering (`category ASC, name ASC, id ASC`) so
+ * that no record is skipped or duplicated across consecutive pages. The cursor
+ * encodes the (category, name, id) tuple of the last row of the previous page;
+ * the query fetches `limit + 1` rows to detect whether more pages remain.
+ *
+ * @param cursor Decoded cursor from a previous page, or null for the first page.
+ * @param limit Requested page size (clamped to max 200, default 50).
+ * @param listId Optional shopping list filter.
+ * @returns PaginatedResponse envelope with items, nextCursor, and pageSize.
+ */
+export const getShoppingItemsPage = async (
+  cursor: ShoppingListCursor | null,
+  limit?: number,
+  listId?: string
+): Promise<PaginatedResponse<ShoppingItem>> => {
+  const pageSize = clampLimit(limit);
+
+  const conditions: string[] = ['is_purchased = FALSE'];
+  const values: any[] = [];
+  let paramCount = 1;
+
+  if (listId !== undefined) {
+    conditions.push(`list_id = $${paramCount++}`);
+    values.push(listId);
+  }
+
+  // Keyset predicate for (category, name, id) ASC.
+  if (cursor) {
+    const catParam = paramCount++;
+    const nameParam = paramCount++;
+    const idParam = paramCount++;
+    conditions.push(
+      `(category, name, id) > ($${catParam}::text, $${nameParam}::text, $${idParam}::uuid)`
+    );
+    values.push(cursor.category, cursor.name, cursor.id);
+  }
+
+  const whereClause = `WHERE ${conditions.join(' AND ')}`;
+  const limitParam = paramCount++;
+  values.push(pageSize + 1);
+
+  const result = await query(
+    `SELECT * FROM shopping_items ${whereClause}
+     ORDER BY category ASC, name ASC, id ASC
+     LIMIT $${limitParam}`,
+    values
+  );
+
+  const rows = result.rows as ShoppingItemRow[];
+  const hasMore = rows.length > pageSize;
+  const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const items = pageRows.map((row) => shoppingItemFromRow(row));
+
+  let nextCursor: string | null = null;
+  if (hasMore) {
+    const last = pageRows[pageRows.length - 1];
+    if (last) {
+      nextCursor = encodeCursor({
+        category: last.category,
+        name: last.name,
+        id: last.id,
+      } satisfies ShoppingListCursor);
+    }
+  }
+
+  return { items, nextCursor, pageSize };
 };
 
 /**

@@ -1,8 +1,16 @@
-import { Pool, PoolConfig } from 'pg';
+import { Pool, PoolConfig, QueryResult } from 'pg';
 import dotenv from 'dotenv';
 import { logger } from '../logger';
 
 dotenv.config();
+
+/**
+ * Minimal query-executor interface shared by the connection pool `query`
+ * helper and a transaction-scoped pg `PoolClient`. Data-access functions can
+ * accept a `Queryable` so the same code path runs either against the pool
+ * (auto-commit) or inside a caller-supplied BEGIN/COMMIT/ROLLBACK transaction.
+ */
+export type Queryable = (text: string, params?: any[]) => Promise<QueryResult>;
 
 // Database connection configuration
 const poolConfig: PoolConfig = {

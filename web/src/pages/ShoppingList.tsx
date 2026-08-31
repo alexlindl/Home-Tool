@@ -19,6 +19,7 @@ import { shoppingListApi, shoppingApi, userApi, userSettingsApi, categoryApi } f
 import type { CategoryRecord } from '@/services/api';
 import { useUndoSnackbar } from '@/contexts/UndoSnackbarContext';
 import { buildCategoryGroups } from './shoppingListGrouping';
+import { SEARCH_DEBOUNCE_MS, SEARCH_MIN_CHARS, useDebouncedValue } from '@/utils/searchConfig';
 import type { ShoppingItem, ShoppingList as ShoppingListType, Category, User } from '@/types';
 
 const categoryLabels: Record<string, string> = {
@@ -38,17 +39,11 @@ export const ShoppingList: React.FC = () => {
   const [searchParams] = useSearchParams();
   const deepLinkApplied = useRef(false);
 
-  // Search state
+  // Search state — debounced via the shared search config so the shopping
+  // search reuses the exact same debounce interval and min-character threshold
+  // as the Tasks search.
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  // Debounce search input by 100ms
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  const debouncedSearch = useDebouncedValue(searchQuery, SEARCH_DEBOUNCE_MS);
 
   // Read deep link query params
   const listIdParam = searchParams.get('listId');
@@ -68,11 +63,16 @@ export const ShoppingList: React.FC = () => {
   const [categoryOrderUnavailable, setCategoryOrderUnavailable] = useState(false);
 
   // Load categories so groups can be ordered by their configured sortPosition.
+  // When a specific list is selected, fetch that list's per-list category order
+  // (AC 7.5) so grouping honors the active list's ordering; when viewing "all"
+  // or no list, fetch the global (canonical) order. Lists without an explicit
+  // per-list order fall back to canonical order server-side.
   // On failure or empty results, fall back to a single "uncategorized" group
   // and surface an unavailable indication.
   const loadCategories = useCallback(() => {
+    const listId = selectedListId && selectedListId !== 'all' ? selectedListId : undefined;
     categoryApi
-      .getAll()
+      .getAll(listId)
       .then((cats) => {
         if (cats.length === 0) {
           setCategories([]);
@@ -86,8 +86,10 @@ export const ShoppingList: React.FC = () => {
         setCategories([]);
         setCategoryOrderUnavailable(true);
       });
-  }, []);
+  }, [selectedListId]);
 
+  // Re-fetch categories whenever the loader changes, which includes changes to
+  // the selected list, so grouping reflects the active list's category order.
   useEffect(() => {
     loadCategories();
   }, [loadCategories]);
@@ -151,10 +153,14 @@ export const ShoppingList: React.FC = () => {
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<Category>>(new Set());
 
-  // Filter items by search query (≥2 chars, case-insensitive substring on item name)
+  // Filter items by search query. Below SEARCH_MIN_CHARS all items are shown
+  // unfiltered; at/above the threshold, filter to items whose name contains the
+  // term as a case-insensitive substring. Filtering happens BEFORE grouping so
+  // category groups that become empty under the filter are omitted (the
+  // grouping helper drops empty groups).
   const searchFilteredItems = useMemo(() => {
     const unpurchased = items.filter((i) => !i.isPurchased);
-    if (debouncedSearch.length < 2) return unpurchased;
+    if (debouncedSearch.length < SEARCH_MIN_CHARS) return unpurchased;
     const query = debouncedSearch.toLowerCase();
     return unpurchased.filter((item) => item.name.toLowerCase().includes(query));
   }, [items, debouncedSearch]);
@@ -205,6 +211,31 @@ export const ShoppingList: React.FC = () => {
 
   const handleEditSaved = (_item: ShoppingItem) => {
     refreshList();
+  };
+
+  const handleItemDeleted = (deletedItem: ShoppingItem) => {
+    // The item was already deleted (it disappears from the list immediately).
+    refreshList();
+    // Offer an Undo_Snackbar bound to the captured payload. The restore
+    // endpoint recreates the item from its original id via ON CONFLICT DO NOTHING.
+    const listId = selectedListId && selectedListId !== 'all' ? selectedListId : undefined;
+    showUndo({
+      itemName: deletedItem.name,
+      actionDescription: 'Item deleted',
+      onUndo: async () => {
+        await shoppingApi.restoreItem({
+          id: deletedItem.id,
+          name: deletedItem.name,
+          category: deletedItem.category,
+          addedBy: deletedItem.addedBy,
+          isPurchased: deletedItem.isPurchased,
+          purchasedBy: deletedItem.purchasedBy ?? null,
+          listId: listId ?? null,
+          createdAt: deletedItem.createdAt,
+        });
+        refreshList();
+      },
+    });
   };
 
   const handleAdded = (_item: ShoppingItem) => {
@@ -310,7 +341,7 @@ export const ShoppingList: React.FC = () => {
         )}
       </div>
 
-      {!loading && searchFilteredItems.length === 0 && debouncedSearch.length >= 2 && (
+      {!loading && searchFilteredItems.length === 0 && debouncedSearch.length >= SEARCH_MIN_CHARS && (
         <div className="empty-state">
           <p>No items match your search.</p>
         </div>
@@ -385,7 +416,7 @@ export const ShoppingList: React.FC = () => {
         item={editingItem}
         onClose={() => setEditingItem(null)}
         onSaved={handleEditSaved}
-        onDeleted={refreshList}
+        onDeleted={handleItemDeleted}
       />
 
       {/* Move to list modal */}

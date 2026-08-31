@@ -44,7 +44,11 @@ interface TaskFormProps {
   open: boolean;
   onClose: () => void;
   onCreated: (task: Task) => void;
-  onDeleted?: () => void;
+  /**
+   * Called after a successful delete with the full task that was deleted, so
+   * the parent can offer an Undo_Snackbar bound to the captured payload.
+   */
+  onDeleted?: (deletedTask: Task) => void;
   currentUserId: string;
   /** When provided, the form operates in edit mode with pre-populated fields */
   editTask?: Task | null;
@@ -242,11 +246,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
   const handleDelete = async () => {
     if (!editTask) return;
-    if (!window.confirm('Are you sure you want to delete this task? This cannot be undone.')) return;
+    if (!window.confirm('Are you sure you want to delete this task?')) return;
+    // Capture the full entity payload BEFORE deleting so it can be restored.
+    const deletedTask = editTask;
     try {
-      await taskApi.deleteTask(editTask.id);
+      await taskApi.deleteTask(deletedTask.id);
       onClose();
-      if (onDeleted) onDeleted();
+      if (onDeleted) onDeleted(deletedTask);
     } catch (err: unknown) {
       let message = 'Failed to delete task. Please try again.';
       if (err instanceof Error) message = err.message;

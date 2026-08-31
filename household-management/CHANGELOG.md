@@ -2,6 +2,23 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.4.0] - 2026-08-31
+
+### Added
+- Shopping list text search with debounced, case-insensitive filtering and a clear control
+- Drag-and-drop category reordering in Settings, with up/down button fallback for keyboard accessibility, plus per-list category ordering
+- Undo snackbar when deleting a shopping item, task, category, or shopping list — restore the deleted entity within a short window
+- Cursor-based pagination across the activity log, task history, task lists, and shopping lists, with infinite-scroll / load-more in the UI
+- Scheduled automatic backups written to the add-on config directory, optionally encrypted with AES-256-GCM, with a configurable schedule and retention count. New add-on options: `backup_enabled`, `backup_schedule`, `backup_encryption_enabled`, `backup_encryption_key`, `backup_retention_count`
+- Read-only backup status panel in Settings showing whether scheduled backups are enabled, the schedule, and whether encryption is enabled
+- Admin controls in Settings to clear the activity log and clear task history (each with an action-specific confirmation), and a "Bring tasks up to date" action that completes all overdue tasks
+
+### Changed
+- Category dropdowns in the add and edit shopping item forms now honor the configured category sort order
+
+### Fixed
+- Undoing a task deletion now restores the task to its original list rather than the currently filtered list (the frontend task model now carries its `listId`)
+
 ## [1.3.3] - 2026-08-31
 
 ### Fixed

@@ -8,18 +8,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { taskApi, userApi, shoppingApi } from '@/services/api';
 import { UserBadge } from '@/components/UserBadge';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import type { TaskHistory as TaskHistoryType, User, ShoppingItem } from '@/types';
 
 type HistoryTab = 'tasks' | 'shopping';
 
 export const TaskHistory: React.FC = () => {
-  const [history, setHistory] = useState<TaskHistoryType[]>([]);
   const [purchases, setPurchases] = useState<ShoppingItem[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [undoingId, setUndoingId] = useState<string | null>(null);
+  const [removedHistoryIds, setRemovedHistoryIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<HistoryTab>('tasks');
 
   const userNames = useMemo(() => {
@@ -30,16 +31,36 @@ export const TaskHistory: React.FC = () => {
     return map;
   }, [users]);
 
+  // Cursor-paginated task history feed with load-more + infinite scroll.
+  // Default Page_Size (50) is applied server-side when limit is omitted.
+  const fetchHistoryPage = useCallback(
+    (cursor?: string) => taskApi.getHistoryPaginated(cursor),
+    [],
+  );
+  const {
+    items: historyItems,
+    loading: historyLoading,
+    loadingMore: historyLoadingMore,
+    hasMore: historyHasMore,
+    error: historyError,
+    loadMore: loadMoreHistory,
+    sentinelRef: historySentinelRef,
+  } = useInfiniteScroll<TaskHistoryType>(fetchHistoryPage, []);
+
+  // Undone entries are hidden client-side so we don't have to refetch a page.
+  const history = useMemo(
+    () => historyItems.filter((h) => !removedHistoryIds.has(h.id)),
+    [historyItems, removedHistoryIds],
+  );
+
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [data, userList, purchaseData] = await Promise.all([
-        taskApi.getHistory(days),
+      const [userList, purchaseData] = await Promise.all([
         userApi.getAllUsers(),
         shoppingApi.getRecentPurchases(days),
       ]);
-      setHistory(data);
       setUsers(userList);
       setPurchases(purchaseData);
     } catch (err) {
@@ -58,7 +79,11 @@ export const TaskHistory: React.FC = () => {
     setUndoingId(entry.id);
     try {
       await taskApi.uncompleteTask(entry.taskId);
-      setHistory((prev) => prev.filter((h) => h.id !== entry.id));
+      setRemovedHistoryIds((prev) => {
+        const next = new Set(prev);
+        next.add(entry.id);
+        return next;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to undo task';
       setError(message);
@@ -123,13 +148,17 @@ export const TaskHistory: React.FC = () => {
 
       {loading && <div className="loading-state">Loading history...</div>}
       {error && <div className="error-state">{error}</div>}
+      {activeTab === 'tasks' && historyError && <div className="error-state">{historyError}</div>}
 
       {/* Tasks Tab */}
-      {activeTab === 'tasks' && !loading && (
+      {activeTab === 'tasks' && !loading && historyLoading && (
+        <div className="loading-state">Loading history...</div>
+      )}
+      {activeTab === 'tasks' && !loading && !historyLoading && (
         <>
           {history.length === 0 && (
             <div className="empty-state">
-              <p>No completed tasks in this period.</p>
+              <p>No completed tasks yet.</p>
             </div>
           )}
 
@@ -166,6 +195,23 @@ export const TaskHistory: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* Infinite-scroll sentinel: loads the next page when scrolled near the end. */}
+          {historyHasMore && <div ref={historySentinelRef} aria-hidden="true" style={{ height: 1 }} />}
+
+          {/* Explicit load-more control + "more available" indicator (Req 5.5, 5.6). */}
+          {historyHasMore && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+              <button
+                type="button"
+                className="filter-btn"
+                onClick={loadMoreHistory}
+                disabled={historyLoadingMore}
+              >
+                {historyLoadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            </div>
+          )}
         </>
       )}
 

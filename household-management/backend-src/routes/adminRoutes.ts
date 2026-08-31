@@ -5,6 +5,8 @@
 
 import { Router, Request, Response } from 'express';
 import { query, getClient } from '../db/connection';
+import { taskService } from '../services/TaskService';
+import { readBackupConfig } from '../services/BackupSchedulerService';
 import fs from 'fs';
 import path from 'path';
 
@@ -235,7 +237,7 @@ router.get('/backup', async (_req: Request, res: Response): Promise<void> => {
     const categories = await query('SELECT * FROM categories');
 
     const backup = {
-      version: '1.3.3',
+      version: '1.4.0',
       exportedAt: new Date().toISOString(),
       data: {
         users: users.rows,
@@ -259,6 +261,20 @@ router.get('/backup', async (_req: Request, res: Response): Promise<void> => {
       message: 'Failed to create backup',
     });
   }
+});
+
+/**
+ * GET /api/admin/backup/config
+ * Return the effective scheduled-backup configuration read from the environment.
+ * Never exposes the encryption key value itself; only whether one is present
+ * (via `hasEncryptionKey`).
+ *
+ * Response: 200 OK
+ * { enabled, schedule, encryptionEnabled, hasEncryptionKey, retentionCount }
+ */
+router.get('/backup/config', (_req: Request, res: Response): void => {
+  const config = readBackupConfig();
+  res.json(config);
 });
 
 /**
@@ -526,6 +542,217 @@ router.post('/factory-reset', async (req: Request, res: Response): Promise<void>
     res.status(500).json({
       status: 'error',
       message: 'Failed to perform factory reset',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/clear-activity-log
+ * Clear all rows from the activity_log table.
+ *
+ * Protected by requireAdminSecret (applied at the /api/admin router mount).
+ * Requires an action-specific confirmation token so a generic confirm cannot
+ * clear the wrong table.
+ *
+ * Request body:
+ * { "confirm": "activity_log" }
+ *
+ * Response: 200 OK
+ * { "message": "Activity log cleared", "deletedCount": <n> }
+ *
+ * Response: 400 Bad Request (confirmation missing or not targeting activity_log)
+ * { "status": "error", "message": "..." }
+ */
+router.post('/clear-activity-log', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { confirm } = req.body;
+
+    // Action-specific confirmation: must exactly match this endpoint's target
+    // table. On mismatch, reject with 400 and perform NO deletes.
+    if (confirm !== 'activity_log') {
+      res.status(400).json({
+        status: 'error',
+        message: "Confirmation required. Set confirm: 'activity_log' to proceed.",
+      });
+      return;
+    }
+
+    // Delete only from activity_log inside a single transaction so a failure
+    // rolls back and leaves the table unchanged. Follows the getClient
+    // BEGIN/COMMIT/ROLLBACK pattern from categoryQueries.reorderCategories.
+    let deletedCount = 0;
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query('DELETE FROM activity_log');
+      deletedCount = result.rowCount ?? 0;
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
+    }
+
+    res.status(200).json({
+      message: 'Activity log cleared',
+      deletedCount,
+    });
+  } catch (error) {
+    console.error('Error clearing activity log:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to clear activity log',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/clear-task-history
+ * Clear all rows from the task_history table.
+ *
+ * Protected by requireAdminSecret (applied at the /api/admin router mount).
+ * Requires an action-specific confirmation token so a generic confirm cannot
+ * clear the wrong table.
+ *
+ * Request body:
+ * { "confirm": "task_history" }
+ *
+ * Response: 200 OK
+ * { "message": "Task history cleared", "deletedCount": <n> }
+ *
+ * Response: 400 Bad Request (confirmation missing or not targeting task_history)
+ * { "status": "error", "message": "..." }
+ */
+router.post('/clear-task-history', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { confirm } = req.body;
+
+    // Action-specific confirmation: must exactly match this endpoint's target
+    // table. On mismatch, reject with 400 and perform NO deletes.
+    if (confirm !== 'task_history') {
+      res.status(400).json({
+        status: 'error',
+        message: "Confirmation required. Set confirm: 'task_history' to proceed.",
+      });
+      return;
+    }
+
+    // Delete only from task_history inside a single transaction so a failure
+    // rolls back and leaves the table unchanged. Follows the getClient
+    // BEGIN/COMMIT/ROLLBACK pattern from categoryQueries.reorderCategories.
+    let deletedCount = 0;
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query('DELETE FROM task_history');
+      deletedCount = result.rowCount ?? 0;
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
+    }
+
+    res.status(200).json({
+      message: 'Task history cleared',
+      deletedCount,
+    });
+  } catch (error) {
+    console.error('Error clearing task history:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to clear task history',
+    });
+  }
+});
+
+/**
+ * POST /api/admin/bring-tasks-up-to-date
+ * Complete every overdue pending task, applying the application's existing
+ * task completion semantics (writes task_history, advances recurring tasks to
+ * their next occurrence, sets non-recurring tasks to completed).
+ *
+ * Protected by requireAdminSecret (applied at the /api/admin router mount).
+ *
+ * Request body:
+ * { "confirm": true, "userId": "<uuid>" }
+ * `userId` is the user credited with the completions.
+ *
+ * Response: 200 OK
+ * { "completedCount": <n> }
+ *
+ * Response: 400 Bad Request (confirmation missing)
+ * { "status": "error", "message": "..." }
+ *
+ * Response: 500 (transaction rolled back; no task partially completed)
+ * { "status": "error", "message": "..." }
+ */
+router.post('/bring-tasks-up-to-date', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { confirm, userId } = req.body;
+
+    if (confirm !== true) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Confirmation required. Set confirm: true to proceed.',
+      });
+      return;
+    }
+
+    // Complete every overdue task inside a single transaction so a failure
+    // rolls back and no task is left partially completed (AC 9.8). Follows the
+    // getClient BEGIN/COMMIT/ROLLBACK pattern from
+    // categoryQueries.reorderCategories.
+    let completedCount = 0;
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Snapshot the overdue task id set ONCE up front, locking those rows.
+      // Iterating this fixed list means recurring completions that create a
+      // new (possibly overdue) future occurrence are not re-processed.
+      const overdue = await client.query(
+        "SELECT id FROM tasks WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < NOW() FOR UPDATE",
+      );
+
+      for (const row of overdue.rows) {
+        // completeTaskWithClient applies the existing completion semantics on
+        // the transaction client: writes task_history, advances recurring
+        // tasks, and completes non-recurring tasks. `userId` is credited with
+        // the completion.
+        await taskService.completeTaskWithClient(client, row.id, userId);
+      }
+
+      completedCount = overdue.rowCount ?? 0;
+
+      await client.query('COMMIT');
+    } catch (txnError) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Ignore rollback errors; the original error is more meaningful.
+      }
+      throw txnError;
+    } finally {
+      client.release();
+    }
+
+    res.status(200).json({ completedCount });
+  } catch (error) {
+    console.error('Error bringing tasks up to date:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to bring tasks up to date',
     });
   }
 });

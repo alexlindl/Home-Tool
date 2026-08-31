@@ -259,6 +259,87 @@ To manually back up:
 2. Copy `/addon_configs/a0d7b954_household-management/` to a safe location
 3. Start the add-on
 
+## Scheduled & Encrypted Backups
+
+The add-on can automatically write periodic backups of all household data to its persistent
+`addon_config` directory, optionally encrypted with AES-256-GCM.
+
+### Configuration options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `backup_enabled` | bool | `false` | Enable scheduled automatic backups. |
+| `backup_schedule` | daily \| weekly | `daily` | How often a scheduled backup is written. |
+| `backup_encryption_enabled` | bool | `false` | Encrypt scheduled backups with AES-256-GCM. |
+| `backup_encryption_key` | string (secret) | _(empty)_ | Secret used to derive the AES-256 key. Required when encryption is enabled. |
+| `backup_retention_count` | int | `7` | Number of scheduled backup files to keep; the oldest are pruned. |
+
+Backups are written to the add-on's persistent config directory
+(`/addon_configs/household-management/backups/`). When encryption is enabled but no
+`backup_encryption_key` is set, the scheduled backup is skipped and an error is logged.
+
+### Encrypted file format
+
+An encrypted backup is a JSON envelope. The 32-byte AES-256 key is derived from
+`backup_encryption_key` with SHA-256:
+
+```json
+{
+  "format": "household-backup-encrypted",
+  "alg": "aes-256-gcm",
+  "kdf": "sha256",
+  "iv":  "<base64 12-byte iv>",
+  "tag": "<base64 16-byte GCM auth tag>",
+  "ciphertext": "<base64 AES-256-GCM ciphertext of the backup JSON>"
+}
+```
+
+### Decrypting a backup manually with openssl
+
+`openssl` expects the key as hex and the IV/tag/ciphertext as raw bytes. Given the envelope
+fields, derive the key and decode the parts, then run `openssl enc`:
+
+```bash
+# 1. Derive the 32-byte AES key (hex) from your backup_encryption_key
+KEY_HEX=$(printf '%s' "$BACKUP_ENCRYPTION_KEY" | openssl dgst -sha256 -binary | xxd -p -c 256)
+
+# 2. Pull the fields out of the envelope (requires jq)
+IV_HEX=$(jq -r '.iv'  backup.enc.json | base64 -d | xxd -p -c 256)
+TAG_HEX=$(jq -r '.tag' backup.enc.json | base64 -d | xxd -p -c 256)
+jq -r '.ciphertext' backup.enc.json | base64 -d > backup.cipher
+
+# 3. Decrypt with AES-256-GCM (openssl 3.x supports GCM via enc)
+openssl enc -d -aes-256-gcm \
+  -K "$KEY_HEX" \
+  -iv "$IV_HEX" \
+  -in backup.cipher \
+  -out backup.json \
+  -tag "$TAG_HEX"
+
+# backup.json now contains the plaintext { version, exportedAt, data: {...} }
+```
+
+> Note: some `openssl` builds do not expose GCM tag handling through the `enc` CLI. As a portable
+> fallback, a short Node one-liner using `crypto.createDecipheriv('aes-256-gcm', key, iv)` and
+> `setAuthTag(tag)` decrypts the same envelope; this is the reference implementation the add-on
+> uses internally.
+
+### Restoring from a (decrypted) backup
+
+The decrypted `backup.json` has the exact shape produced by `GET /api/admin/backup`, so it restores
+through the existing restore endpoint:
+
+```bash
+curl -X POST "http://<ha-ip>:8023/api/admin/restore" \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Secret: <your admin_api_secret>" \
+  -d "$(jq -c '{ data: .data, confirm: true }' backup.json)"
+```
+
+The restore runs inside a single transaction, clears existing data, and re-inserts every row with
+its original id, so the household data is restored faithfully. If `admin_api_secret` is not set,
+omit the `X-Admin-Secret` header.
+
 ## System Requirements
 
 - Home Assistant OS or Supervised installation

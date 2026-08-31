@@ -22,6 +22,8 @@ import type {
   TaskList,
   ShoppingList,
   ShoppingSearchResult,
+  PaginatedResponse,
+  BackupStatus,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -177,6 +179,16 @@ export const taskApi = {
     await apiClient.delete(`/tasks/${id}`);
   },
 
+  /**
+   * Restore (recreate) a previously deleted task from a full payload including
+   * its original id. Backed by `POST /api/tasks/restore` which uses
+   * `INSERT ... ON CONFLICT (id) DO NOTHING`, so restoring a task that still
+   * exists is a harmless no-op success. Used by the Undo_Snackbar undo action.
+   */
+  async restoreTask(payload: Record<string, unknown>): Promise<void> {
+    await apiClient.post('/tasks/restore', payload);
+  },
+
   /** Mark a task as complete */
   async completeTask(id: string, userId: string): Promise<void> {
     await apiClient.post(`/tasks/${id}/complete`, { userId });
@@ -195,6 +207,21 @@ export const taskApi = {
 
     const response = await apiClient.get<{ history: TaskHistory[] }>('/tasks/history', { params });
     return response.data.history;
+  },
+
+  /**
+   * Get a cursor-paginated page of task history (completed tasks).
+   * Returns a PaginatedResponse envelope: `{ items, nextCursor, pageSize }`.
+   * Pass `cursor` from a previous response's `nextCursor` to fetch the next
+   * page; omit `limit` to use the backend default Page_Size (50).
+   */
+  async getHistoryPaginated(cursor?: string, limit?: number): Promise<PaginatedResponse<TaskHistory>> {
+    const params: Record<string, string> = {};
+    if (cursor) params.cursor = cursor;
+    if (limit !== undefined) params.limit = String(limit);
+
+    const response = await apiClient.get<PaginatedResponse<TaskHistory>>('/tasks/history/paginated', { params });
+    return response.data;
   },
 
   /** Get task templates */
@@ -262,6 +289,16 @@ export const shoppingApi = {
   /** Delete a shopping item */
   async deleteItem(id: string): Promise<void> {
     await apiClient.delete(`/shopping/${id}`);
+  },
+
+  /**
+   * Restore (recreate) a previously deleted shopping item from a full payload
+   * including its original id. Backed by `POST /api/shopping/restore` which uses
+   * `INSERT ... ON CONFLICT (id) DO NOTHING`, so restoring an item that still
+   * exists is a harmless no-op success. Used by the Undo_Snackbar undo action.
+   */
+  async restoreItem(payload: Record<string, unknown>): Promise<void> {
+    await apiClient.post('/shopping/restore', payload);
   },
 
   /** Mark a shopping item as purchased */
@@ -383,6 +420,66 @@ export const adminApi = {
     );
     return response.data;
   },
+
+  /**
+   * Get the effective scheduled-backup configuration status.
+   *
+   * Sourced from add-on options (applied on restart); never returns the
+   * encryption key value itself, only whether one is present.
+   */
+  async getBackupConfig(): Promise<BackupStatus> {
+    const response = await apiClient.get<BackupStatus>('/admin/backup/config', adminRequestConfig());
+    return response.data;
+  },
+
+  /**
+   * Clear all rows from the Activity_Log.
+   *
+   * Sends the action-specific confirmation token `activity_log` so a generic
+   * confirm cannot clear the wrong table. Guarded by requireAdminSecret, so the
+   * admin secret header is attached via adminRequestConfig().
+   */
+  async clearActivityLog(): Promise<{ message: string; deletedCount: number }> {
+    const response = await apiClient.post<{ message: string; deletedCount: number }>(
+      '/admin/clear-activity-log',
+      { confirm: 'activity_log' },
+      adminRequestConfig(),
+    );
+    return response.data;
+  },
+
+  /**
+   * Clear all rows from the Task_History.
+   *
+   * Sends the action-specific confirmation token `task_history` so a generic
+   * confirm cannot clear the wrong table. Guarded by requireAdminSecret, so the
+   * admin secret header is attached via adminRequestConfig().
+   */
+  async clearTaskHistory(): Promise<{ message: string; deletedCount: number }> {
+    const response = await apiClient.post<{ message: string; deletedCount: number }>(
+      '/admin/clear-task-history',
+      { confirm: 'task_history' },
+      adminRequestConfig(),
+    );
+    return response.data;
+  },
+
+  /**
+   * Complete every overdue pending task, applying the existing completion
+   * semantics (writes task_history, advances recurring tasks, completes
+   * non-recurring tasks). Returns the count of tasks that were completed.
+   *
+   * Guarded by requireAdminSecret, so the admin secret header is attached via
+   * adminRequestConfig().
+   */
+  async bringTasksUpToDate(userId: string): Promise<{ completedCount: number }> {
+    const response = await apiClient.post<{ completedCount: number }>(
+      '/admin/bring-tasks-up-to-date',
+      { confirm: true, userId },
+      adminRequestConfig(),
+    );
+    return response.data;
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -396,6 +493,21 @@ export interface ActivityEntry {
   timestamp: string;
 }
 
+/**
+ * A single Activity_Log entry as returned by the cursor-paginated feed
+ * (`GET /api/activity/paginated`). Mirrors the backend `ActivityLogEntry`
+ * shape: it carries a stable `id` (used as a React key / tie-break) and a
+ * nullable `userId`. `type` is a plain string because the activity_log table
+ * may store event types beyond the curated `ActivityEntry` union.
+ */
+export interface PaginatedActivityEntry {
+  id: string;
+  type: string;
+  title: string;
+  userId: string | null;
+  timestamp: string;
+}
+
 export const activityApi = {
   /** Get activity log for the past N days */
   async getActivity(days: number = 30): Promise<ActivityEntry[]> {
@@ -403,6 +515,21 @@ export const activityApi = {
       params: { days: String(days) },
     });
     return response.data.entries;
+  },
+
+  /**
+   * Get a cursor-paginated page of the Activity_Log feed.
+   * Returns a PaginatedResponse envelope: `{ items, nextCursor, pageSize }`.
+   * Pass `cursor` from a previous response's `nextCursor` to fetch the next
+   * page; omit `limit` to use the backend default Page_Size (50).
+   */
+  async getActivityPaginated(cursor?: string, limit?: number): Promise<PaginatedResponse<PaginatedActivityEntry>> {
+    const params: Record<string, string> = {};
+    if (cursor) params.cursor = cursor;
+    if (limit !== undefined) params.limit = String(limit);
+
+    const response = await apiClient.get<PaginatedResponse<PaginatedActivityEntry>>('/activity/paginated', { params });
+    return response.data;
   },
 
   /** Clear all activity history */
@@ -425,9 +552,13 @@ export interface CategoryRecord {
 }
 
 export const categoryApi = {
-  /** Get all categories */
-  async getAll(): Promise<CategoryRecord[]> {
-    const response = await apiClient.get<{ categories: CategoryRecord[] }>('/categories');
+  /** Get all categories. When `listId` is provided, categories are ordered by
+   *  that list's per-list order (falling back to canonical order for any
+   *  category without an explicit per-list position). */
+  async getAll(listId?: string): Promise<CategoryRecord[]> {
+    const params: Record<string, string> = {};
+    if (listId) params.listId = listId;
+    const response = await apiClient.get<{ categories: CategoryRecord[] }>('/categories', { params });
     return response.data.categories;
   },
 
@@ -464,6 +595,17 @@ export const categoryApi = {
   /** Delete a category */
   async remove(id: string): Promise<void> {
     await apiClient.delete(`/categories/${id}`);
+  },
+
+  /**
+   * Restore (recreate) a previously deleted category from a full payload
+   * including its original id and `sortPosition`. Backed by
+   * `POST /api/categories/restore` which uses `INSERT ... ON CONFLICT (id) DO
+   * NOTHING`, so restoring a category that still exists is a harmless no-op
+   * success. Used by the Undo_Snackbar undo action.
+   */
+  async restore(payload: Record<string, unknown>): Promise<void> {
+    await apiClient.post('/categories/restore', payload);
   },
 };
 
@@ -575,5 +717,16 @@ export const shoppingListApi = {
   /** Delete a shopping list */
   async remove(id: string): Promise<void> {
     await apiClient.delete(`/shopping-lists/${id}`);
+  },
+
+  /**
+   * Restore (recreate) a previously deleted shopping list from a full payload
+   * including its original id. Backed by `POST /api/shopping-lists/restore`
+   * which uses `INSERT ... ON CONFLICT (id) DO NOTHING`, so restoring a list
+   * that still exists is a harmless no-op success. Used by the Undo_Snackbar
+   * undo action.
+   */
+  async restore(payload: Record<string, unknown>): Promise<void> {
+    await apiClient.post('/shopping-lists/restore', payload);
   },
 };

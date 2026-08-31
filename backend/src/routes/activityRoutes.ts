@@ -5,6 +5,8 @@
 
 import { Router, Request, Response } from 'express';
 import { query } from '../db/connection';
+import { getActivityLogPage, ActivityLogCursor } from '../db/activityQueries';
+import { decodeCursor } from '../utils/cursor';
 
 const router = Router();
 
@@ -104,6 +106,48 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({ entries: limited });
   } catch (error) {
     console.error('Error fetching activity log:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch activity log',
+    });
+  }
+});
+
+/**
+ * GET /api/activity/paginated?limit=<n>&cursor=<opaque>
+ * Cursor-paginated Activity_Log feed with a stable (created_at, id) ordering.
+ *
+ * Query parameters:
+ *   limit  - page size (clamped to max 200, default 50)
+ *   cursor - opaque base64 cursor from a previous response's nextCursor
+ *
+ * Response: 200 OK
+ *   { "items": [ { id, type, title, userId, timestamp } ], "nextCursor": string | null, "pageSize": number }
+ *
+ * A malformed cursor yields 400.
+ */
+router.get('/paginated', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { limit, cursor } = req.query;
+
+    let decoded: ActivityLogCursor | null = null;
+    if (cursor !== undefined && cursor !== '') {
+      try {
+        decoded = decodeCursor<ActivityLogCursor>(cursor as string);
+      } catch {
+        res.status(400).json({
+          status: 'error',
+          message: 'Invalid cursor parameter',
+        });
+        return;
+      }
+    }
+
+    const parsedLimit = limit !== undefined ? Number(limit) : undefined;
+    const page = await getActivityLogPage(decoded, parsedLimit);
+    res.status(200).json(page);
+  } catch (error) {
+    console.error('Error fetching paginated activity log:', error);
     res.status(500).json({
       status: 'error',
       message: 'Failed to fetch activity log',

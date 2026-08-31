@@ -3,7 +3,7 @@
  * Provides functions to interact with the tasks, task_templates, and task_history tables
  */
 
-import { query } from './connection';
+import { query, Queryable } from './connection';
 import { 
   Task, 
   TaskRow, 
@@ -15,6 +15,28 @@ import {
   TaskHistoryRow, 
   taskHistoryFromRow 
 } from '../models/Task';
+import { PaginatedResponse } from '../models';
+import { encodeCursor, clampLimit } from '../utils/cursor';
+
+/**
+ * Opaque cursor payload for Task_History keyset pagination.
+ * Encodes the ordering-key tuple (completed_at, id) of the last row seen.
+ */
+export interface TaskHistoryCursor {
+  ts: string; // completed_at as ISO string
+  id: string; // task_history row id (tie-break)
+}
+
+/**
+ * Opaque cursor payload for the task list keyset pagination.
+ * Encodes the ordering-key tuple (due_date, id) of the last row seen.
+ * `due` is the due_date as an ISO string, or null for backlog rows
+ * (which sort last under `due_date ASC NULLS LAST`).
+ */
+export interface TaskListCursor {
+  due: string | null; // due_date as ISO string, or null for backlog rows
+  id: string;         // task id (tie-break)
+}
 
 /**
  * Input type for creating a new task
@@ -79,17 +101,17 @@ export interface TaskFilters {
  * @param input Task creation data
  * @returns Promise<Task> The created task
  */
-export const createTask = async (input: CreateTaskInput): Promise<Task> => {
+export const createTask = async (input: CreateTaskInput, executor: Queryable = query): Promise<Task> => {
   // Default to the default list if no listId provided
   let listId = input.listId || null;
   if (!listId) {
-    const defaultListResult = await query('SELECT id FROM task_lists WHERE is_default = TRUE LIMIT 1');
+    const defaultListResult = await executor('SELECT id FROM task_lists WHERE is_default = TRUE LIMIT 1');
     if (defaultListResult.rows.length > 0) {
       listId = (defaultListResult.rows[0] as { id: string }).id;
     }
   }
 
-  const result = await query(
+  const result = await executor(
     `INSERT INTO tasks (
       title, description, assigned_to, created_by, due_date,
       is_recurring, recurrence_frequency, recurrence_interval, recurrence_end_date,
@@ -127,7 +149,7 @@ export const createTask = async (input: CreateTaskInput): Promise<Task> => {
  * @param input Task update data
  * @returns Promise<Task | null> The updated task or null if not found
  */
-export const updateTask = async (id: string, input: UpdateTaskInput): Promise<Task | null> => {
+export const updateTask = async (id: string, input: UpdateTaskInput, executor: Queryable = query): Promise<Task | null> => {
   // Build dynamic update query based on provided fields
   const updates: string[] = [];
   const values: any[] = [];
@@ -211,11 +233,11 @@ export const updateTask = async (id: string, input: UpdateTaskInput): Promise<Ta
 
   if (updates.length === 1) {
     // Only updated_at would be updated, nothing to do
-    return getTaskById(id);
+    return getTaskById(id, executor);
   }
 
   values.push(id);
-  const result = await query(
+  const result = await executor(
     `UPDATE tasks SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
     values
   );
@@ -242,8 +264,8 @@ export const deleteTask = async (id: string): Promise<boolean> => {
  * @param id Task UUID
  * @returns Promise<Task | null> Task object or null if not found
  */
-export const getTaskById = async (id: string): Promise<Task | null> => {
-  const result = await query('SELECT * FROM tasks WHERE id = $1', [id]);
+export const getTaskById = async (id: string, executor: Queryable = query): Promise<Task | null> => {
+  const result = await executor('SELECT * FROM tasks WHERE id = $1', [id]);
 
   if (result.rows.length === 0) {
     return null;
@@ -348,6 +370,168 @@ export const getTaskHistory = async (days: number = 30): Promise<TaskHistory[]> 
 };
 
 /**
+ * Get a bounded page of task history using cursor-based (keyset) pagination.
+ *
+ * Rows are returned in a stable ordering (`completed_at DESC, id DESC`) so that
+ * no record is skipped or duplicated across consecutive pages. The cursor
+ * encodes the (completed_at, id) tuple of the last row of the previous page;
+ * the query fetches `limit + 1` rows to detect whether more pages remain.
+ *
+ * @param cursor Decoded cursor from a previous page, or null for the first page.
+ * @param limit Requested page size (clamped to max 200, default 50).
+ * @returns PaginatedResponse envelope with items, nextCursor, and pageSize.
+ */
+export const getTaskHistoryPage = async (
+  cursor: TaskHistoryCursor | null,
+  limit?: number
+): Promise<PaginatedResponse<TaskHistory>> => {
+  const pageSize = clampLimit(limit);
+
+  const cursorTs = cursor ? cursor.ts : null;
+  const cursorId = cursor ? cursor.id : null;
+
+  const result = await query(
+    `SELECT * FROM task_history
+     WHERE ($1::timestamptz IS NULL)
+        OR (completed_at, id) < ($1::timestamptz, $2::uuid)
+     ORDER BY completed_at DESC, id DESC
+     LIMIT $3`,
+    [cursorTs, cursorId, pageSize + 1]
+  );
+
+  const rows = result.rows as TaskHistoryRow[];
+  const hasMore = rows.length > pageSize;
+  const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const items = pageRows.map((row) => taskHistoryFromRow(row));
+
+  let nextCursor: string | null = null;
+  if (hasMore) {
+    const last = pageRows[pageRows.length - 1];
+    if (last) {
+      const ts =
+        last.completed_at instanceof Date
+          ? last.completed_at.toISOString()
+          : String(last.completed_at);
+      nextCursor = encodeCursor({ ts, id: last.id } satisfies TaskHistoryCursor);
+    }
+  }
+
+  return { items, nextCursor, pageSize };
+};
+
+/**
+ * Get a bounded page of the task list using cursor-based (keyset) pagination.
+ *
+ * Rows are returned in a stable ordering (`due_date ASC NULLS LAST, id ASC`):
+ * tasks with a due date come first ordered by date then id, followed by
+ * backlog tasks (null due date) ordered by id. The cursor encodes the
+ * (due_date, id) tuple of the last row of the previous page; the query fetches
+ * `limit + 1` rows to detect whether more pages remain.
+ *
+ * Keyset predicate for `due_date ASC NULLS LAST`:
+ * - When the cursor row had a non-null due_date, the next page starts at rows
+ *   that either have a later (due_date, id) tuple, or have a null due_date
+ *   (which always sorts after any dated row).
+ * - When the cursor row had a null due_date, both it and any following rows are
+ *   in the trailing null-date block, so the next page is null-date rows with a
+ *   greater id.
+ *
+ * @param cursor Decoded cursor from a previous page, or null for the first page.
+ * @param limit Requested page size (clamped to max 200, default 50).
+ * @param filters Optional task filters (assignedTo, status, listId, date range).
+ * @returns PaginatedResponse envelope with items, nextCursor, and pageSize.
+ */
+export const getTasksPage = async (
+  cursor: TaskListCursor | null,
+  limit?: number,
+  filters?: TaskFilters
+): Promise<PaginatedResponse<Task>> => {
+  const pageSize = clampLimit(limit);
+
+  const conditions: string[] = [];
+  const values: any[] = [];
+  let paramCount = 1;
+
+  if (filters?.assignedTo) {
+    conditions.push(`(assigned_to = $${paramCount} OR assigned_to IS NULL)`);
+    values.push(filters.assignedTo);
+    paramCount++;
+  }
+
+  if (filters?.status) {
+    conditions.push(`status = $${paramCount++}`);
+    values.push(filters.status);
+  }
+
+  if (filters?.dueDateFrom) {
+    conditions.push(`due_date >= $${paramCount++}`);
+    values.push(filters.dueDateFrom);
+  }
+
+  if (filters?.dueDateTo) {
+    conditions.push(`due_date <= $${paramCount++}`);
+    values.push(filters.dueDateTo);
+  }
+
+  if (filters?.listId) {
+    conditions.push(`list_id = $${paramCount++}`);
+    values.push(filters.listId);
+  }
+
+  // Keyset predicate for due_date ASC NULLS LAST.
+  if (cursor) {
+    if (cursor.due === null) {
+      // Cursor row is in the trailing null-date block: only null-date rows
+      // with a greater id remain.
+      const cursorIdParam = paramCount++;
+      conditions.push(`(due_date IS NULL AND id > $${cursorIdParam}::uuid)`);
+      values.push(cursor.id);
+    } else {
+      // Cursor row has a due date: later dated rows, OR the whole null block.
+      const cursorDueParam = paramCount++;
+      const cursorIdParam = paramCount++;
+      conditions.push(
+        `((due_date IS NOT NULL AND (due_date, id) > ($${cursorDueParam}::timestamptz, $${cursorIdParam}::uuid)) OR due_date IS NULL)`
+      );
+      values.push(cursor.due);
+      values.push(cursor.id);
+    }
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const limitParam = paramCount++;
+  values.push(pageSize + 1);
+
+  const result = await query(
+    `SELECT * FROM tasks ${whereClause}
+     ORDER BY due_date ASC NULLS LAST, id ASC
+     LIMIT $${limitParam}`,
+    values
+  );
+
+  const rows = result.rows as TaskRow[];
+  const hasMore = rows.length > pageSize;
+  const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+  const items = pageRows.map((row) => taskFromRow(row));
+
+  let nextCursor: string | null = null;
+  if (hasMore) {
+    const last = pageRows[pageRows.length - 1];
+    if (last) {
+      const due =
+        last.due_date instanceof Date
+          ? last.due_date.toISOString()
+          : last.due_date === null
+            ? null
+            : String(last.due_date);
+      nextCursor = encodeCursor({ due, id: last.id } satisfies TaskListCursor);
+    }
+  }
+
+  return { items, nextCursor, pageSize };
+};
+
+/**
  * Create a task history entry
  * @param taskId Original task UUID
  * @param title Task title
@@ -363,9 +547,10 @@ export const createHistoryEntry = async (
   assignedTo: string | null,
   completedBy: string,
   completedAt: Date,
-  wasRecurring: boolean
+  wasRecurring: boolean,
+  executor: Queryable = query
 ): Promise<TaskHistory> => {
-  const result = await query(
+  const result = await executor(
     `INSERT INTO task_history (
       task_id, title, assigned_to, completed_by, completed_at, was_recurring
     ) VALUES ($1, $2, $3, $4, $5, $6)

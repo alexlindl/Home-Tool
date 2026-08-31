@@ -9,6 +9,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   userApi,
   adminApi,
   categoryApi,
@@ -21,9 +38,11 @@ import {
   userSettingsApi,
   CategoryRecord,
 } from '@/services/api';
-import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList } from '@/types';
-import type { ActivityEntry } from '@/services/api';
+import type { User, TaskTemplate, ItemTemplate, TaskList, ShoppingList, BackupStatus } from '@/types';
+import type { ActivityEntry, PaginatedActivityEntry } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useUndoSnackbar } from '@/contexts/UndoSnackbarContext';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import DashboardIntegration from '@/components/DashboardIntegration';
 
 type SettingsTab = 'users' | 'database' | 'categories' | 'templates' | 'lists' | 'backup' | 'theme' | 'dashboard' | 'activity' | 'about';
@@ -481,6 +500,7 @@ const DefaultListPreference: React.FC = () => {
 // ===========================================================================
 
 const DatabaseManagement: React.FC = () => {
+  const { currentUser } = useAuth();
   const [clearHistory, setClearHistory] = useState(false);
   const [clearTasks, setClearTasks] = useState(false);
   const [clearShopping, setClearShopping] = useState(false);
@@ -489,7 +509,67 @@ const DatabaseManagement: React.FC = () => {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Admin history / maintenance controls (Req 8 & 9). Each action has its own
+  // busy flag so the buttons disable independently while their request runs.
+  const [clearingActivity, setClearingActivity] = useState(false);
+  const [clearingTaskHistory, setClearingTaskHistory] = useState(false);
+  const [bringingUpToDate, setBringingUpToDate] = useState(false);
+
   const nothingSelected = !clearHistory && !clearTasks && !clearShopping;
+
+  // Map an admin request error to a user-facing detail string, surfacing the
+  // 401 admin-authorization hint consistent with handleReset above.
+  const adminErrorDetail = (err: unknown): string => {
+    const e = err as { response?: { status?: number; data?: { message?: string } } };
+    const serverMsg = e?.response?.data?.message;
+    const httpStatus = e?.response?.status;
+    return httpStatus === 401
+      ? 'admin authorization required (set the admin secret in both the add-on config and the web build, then restart)'
+      : serverMsg || 'unknown error';
+  };
+
+  const handleClearActivityLog = async () => {
+    if (!window.confirm('Clear the entire activity log? This cannot be undone. Task history is left untouched.')) return;
+    setClearingActivity(true);
+    try {
+      const result = await adminApi.clearActivityLog();
+      setStatus({ type: 'success', message: `Activity log cleared (${result.deletedCount} entries removed).` });
+    } catch (err: unknown) {
+      setStatus({ type: 'error', message: `Failed to clear activity log: ${adminErrorDetail(err)}` });
+    } finally {
+      setClearingActivity(false);
+    }
+  };
+
+  const handleClearTaskHistory = async () => {
+    if (!window.confirm('Clear the entire completed task history? This cannot be undone. The activity log is left untouched.')) return;
+    setClearingTaskHistory(true);
+    try {
+      const result = await adminApi.clearTaskHistory();
+      setStatus({ type: 'success', message: `Task history cleared (${result.deletedCount} entries removed).` });
+    } catch (err: unknown) {
+      setStatus({ type: 'error', message: `Failed to clear task history: ${adminErrorDetail(err)}` });
+    } finally {
+      setClearingTaskHistory(false);
+    }
+  };
+
+  const handleBringTasksUpToDate = async () => {
+    if (!currentUser) {
+      setStatus({ type: 'error', message: 'Cannot bring tasks up to date: no current user.' });
+      return;
+    }
+    if (!window.confirm('Complete every overdue task? Recurring tasks advance to their next occurrence; non-recurring overdue tasks are marked completed.')) return;
+    setBringingUpToDate(true);
+    try {
+      const result = await adminApi.bringTasksUpToDate(currentUser.id);
+      setStatus({ type: 'success', message: `Brought tasks up to date. ${result.completedCount} overdue task(s) completed.` });
+    } catch (err: unknown) {
+      setStatus({ type: 'error', message: `Failed to bring tasks up to date: ${adminErrorDetail(err)}` });
+    } finally {
+      setBringingUpToDate(false);
+    }
+  };
 
   const handleReset = async () => {
     if (confirmText !== 'RESET') return;
@@ -507,8 +587,14 @@ const DatabaseManagement: React.FC = () => {
       setClearHistory(false);
       setClearTasks(false);
       setClearShopping(false);
-    } catch {
-      setStatus({ type: 'error', message: 'Failed to reset database' });
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { message?: string } } };
+      const serverMsg = e?.response?.data?.message;
+      const status = e?.response?.status;
+      const detail = status === 401
+        ? 'admin authorization required (set the admin secret in both the add-on config and the web build, then restart)'
+        : serverMsg || 'unknown error';
+      setStatus({ type: 'error', message: `Failed to reset database: ${detail}` });
     } finally {
       setLoading(false);
     }
@@ -592,6 +678,44 @@ const DatabaseManagement: React.FC = () => {
         </div>
       )}
 
+      {/* History maintenance (Req 8) — clear each feed independently */}
+      <div className="settings-danger-zone" style={{ marginTop: 24 }}>
+        <h3 style={{ marginBottom: 8 }}>History</h3>
+        <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+          Clear the activity feed and completed task history independently. Each action asks for confirmation and cannot be undone.
+        </p>
+        <button
+          className="btn btn--primary settings-btn-danger"
+          disabled={clearingActivity}
+          onClick={handleClearActivityLog}
+          style={{ marginRight: 12 }}
+        >
+          {clearingActivity ? 'Clearing…' : 'Clear Activity Log'}
+        </button>
+        <button
+          className="btn btn--primary settings-btn-danger"
+          disabled={clearingTaskHistory}
+          onClick={handleClearTaskHistory}
+        >
+          {clearingTaskHistory ? 'Clearing…' : 'Clear Task History'}
+        </button>
+      </div>
+
+      {/* Bring tasks up to date (Req 9) — complete every overdue task */}
+      <div className="settings-danger-zone" style={{ marginTop: 24 }}>
+        <h3 style={{ marginBottom: 8 }}>Overdue Tasks</h3>
+        <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+          Complete every overdue task in one step. Recurring tasks advance to their next occurrence; non-recurring overdue tasks are marked completed. This action asks for confirmation.
+        </p>
+        <button
+          className="btn btn--primary"
+          disabled={bringingUpToDate}
+          onClick={handleBringTasksUpToDate}
+        >
+          {bringingUpToDate ? 'Working…' : 'Bring Tasks Up To Date'}
+        </button>
+      </div>
+
       {/* Factory Reset */}
       <div className="settings-danger-zone" style={{ marginTop: 24 }}>
         <h3 style={{ color: 'var(--color-overdue)', marginBottom: 8 }}>⚠️ Factory Reset</h3>
@@ -633,10 +757,50 @@ const DatabaseManagement: React.FC = () => {
 // CategoryManagement
 // ===========================================================================
 
-// Reject an order change that does not complete within this many milliseconds (Req 6.5).
+// Reject an order change that does not complete within this many milliseconds (Req 3.4).
 const REORDER_TIMEOUT_MS = 10000;
 
+/**
+ * Sortable wrapper for a single category row (Req 3.1). Uses dnd-kit's useSortable to
+ * wire the row into the surrounding SortableContext: `attributes` + `listeners` make the
+ * row draggable (via pointer) and keyboard-operable (via the DndContext KeyboardSensor),
+ * and the transform/transition styles animate the row while dragging.
+ */
+const SortableCategoryRow: React.FC<{
+  id: string;
+  disabled: boolean;
+  children: React.ReactNode;
+}> = ({ id, disabled, children }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="settings-list-item"
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+};
+
 const CategoryManagement: React.FC = () => {
+  const { showUndo } = useUndoSnackbar();
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -674,32 +838,32 @@ const CategoryManagement: React.FC = () => {
     }
   };
 
+  // Drag-and-drop sensors. PointerSensor handles mouse/touch dragging; KeyboardSensor
+  // (Req 3.5) makes dnd-kit itself keyboard-operable, using the sortable coordinate
+  // getter so arrow keys move a picked-up category. The up/down ▲▼ buttons below remain
+  // as an explicit, always-available keyboard fallback that produces the same orderedIds.
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   /**
-   * Move the category at `index` up (delta -1) or down (delta +1), persist the new
-   * order, and reconcile with the server.
+   * Apply a fully-computed new category order optimistically, persist it, and reconcile
+   * with the server. Shared by both the ▲▼ buttons (handleMove) and drag-and-drop
+   * (handleDragEnd) so both paths send the identical orderedIds sequence to the
+   * Reorder_Endpoint (Req 3.2, 3.5).
    *
-   * - Computes a new orderedIds sequence and calls categoryApi.reorder within 1s
-   *   of the click (Req 6.3). The API call is issued synchronously here.
-   * - On success, the displayed list is refreshed from the returned payload (Req 6.4).
-   * - On rejection or a >10s timeout, the pre-change order is restored and an error
-   *   message is shown (Req 6.5).
+   * - Applies `nextOrder` to local state optimistically before the response (Req 3.3).
+   * - Calls categoryApi.reorder with the resulting orderedIds (Req 3.2).
+   * - On success, refreshes the displayed list from the returned payload (Req 3.6).
+   * - On rejection or a >10s timeout, reverts to the pre-change order and shows an
+   *   error indication (Req 3.4).
    */
-  const handleMove = async (index: number, delta: number) => {
+  const applyReorder = async (nextOrder: CategoryRecord[]) => {
     if (reorderInFlight.current) return;
 
-    const target = index + delta;
-    if (target < 0 || target >= categories.length) return;
-
+    // Snapshot the order shown before the change so we can revert on failure (Req 3.4).
     const previousOrder = categories;
-    const moved = previousOrder[index];
-    const neighbor = previousOrder[target];
-    if (!moved || !neighbor) return;
-
-    // Compute the optimistic new order by swapping the two rows.
-    const nextOrder = [...previousOrder];
-    nextOrder[index] = neighbor;
-    nextOrder[target] = moved;
-
     const orderedIds = nextOrder.map((cat) => cat.id);
 
     reorderInFlight.current = true;
@@ -707,7 +871,7 @@ const CategoryManagement: React.FC = () => {
     setError('');
     setCategories(nextOrder);
 
-    // Race the request against an explicit 10-second timeout (Req 6.5).
+    // Race the request against an explicit 10-second timeout (Req 3.4).
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => reject(new Error('timeout')), REORDER_TIMEOUT_MS);
@@ -715,10 +879,10 @@ const CategoryManagement: React.FC = () => {
 
     try {
       const updated = await Promise.race([categoryApi.reorder(orderedIds), timeout]);
-      // Refresh the displayed list from the persisted order the API returned (Req 6.4).
+      // Refresh the displayed list from the persisted order the API returned (Req 3.6).
       setCategories(updated);
     } catch (err: unknown) {
-      // Revert to the order shown before the change was attempted (Req 6.5).
+      // Revert to the order shown before the change was attempted (Req 3.4).
       setCategories(previousOrder);
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -729,6 +893,46 @@ const CategoryManagement: React.FC = () => {
       reorderInFlight.current = false;
       setReordering(false);
     }
+  };
+
+  /**
+   * Keyboard fallback (Req 3.5): move the category at `index` up (delta -1) or down
+   * (delta +1) by swapping it with its neighbor, then delegate to applyReorder.
+   */
+  const handleMove = (index: number, delta: number) => {
+    if (reorderInFlight.current) return;
+
+    const target = index + delta;
+    if (target < 0 || target >= categories.length) return;
+
+    const moved = categories[index];
+    const neighbor = categories[target];
+    if (!moved || !neighbor) return;
+
+    // Compute the optimistic new order by swapping the two rows.
+    const nextOrder = [...categories];
+    nextOrder[index] = neighbor;
+    nextOrder[target] = moved;
+
+    void applyReorder(nextOrder);
+  };
+
+  /**
+   * Drag-and-drop reorder (Req 3.1): when a drag ends over a different row, compute the
+   * new order with arrayMove and delegate to applyReorder.
+   */
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = categories.findIndex((cat) => cat.id === active.id);
+    const newIndex = categories.findIndex((cat) => cat.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // arrayMove returns a new array; noUncheckedIndexedAccess is satisfied because we
+    // never index into it directly (applyReorder maps over the whole array).
+    const nextOrder = arrayMove(categories, oldIndex, newIndex);
+    void applyReorder(nextOrder);
   };
 
   const handleRename = async (id: string) => {
@@ -744,10 +948,31 @@ const CategoryManagement: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Capture the full entity payload BEFORE deleting so it can be restored.
+    const deletedCategory = categories.find((c) => c.id === id);
     try {
       await categoryApi.remove(id);
       setConfirmDeleteId(null);
       await fetchCategories();
+      if (deletedCategory) {
+        // Offer an Undo_Snackbar bound to the captured payload. The restore
+        // endpoint recreates the category (preserving sort_position) from its
+        // original id via ON CONFLICT DO NOTHING.
+        showUndo({
+          itemName: deletedCategory.name,
+          actionDescription: 'Category deleted',
+          onUndo: async () => {
+            await categoryApi.restore({
+              id: deletedCategory.id,
+              name: deletedCategory.name,
+              isDefault: deletedCategory.is_default,
+              sortPosition: deletedCategory.sortPosition,
+              createdAt: deletedCategory.created_at,
+            });
+            await fetchCategories();
+          },
+        });
+      }
     } catch {
       setError('Failed to delete category');
     }
@@ -760,10 +985,23 @@ const CategoryManagement: React.FC = () => {
       <h2>Categories</h2>
       {error && <p className="error-state">{error}</p>}
 
-      <div className="settings-list">
-        {categories.map((cat, index) => (
-          <div key={cat.id} className="settings-list-item">
-            {editingId === cat.id ? (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={categories.map((cat) => cat.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="settings-list">
+            {categories.map((cat, index) => (
+              <SortableCategoryRow
+                key={cat.id}
+                id={cat.id}
+                disabled={editingId === cat.id || reordering}
+              >
+                {editingId === cat.id ? (
               <div className="settings-inline-edit">
                 <input
                   type="text"
@@ -819,9 +1057,11 @@ const CategoryManagement: React.FC = () => {
                 </div>
               </>
             )}
+              </SortableCategoryRow>
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
 
       <div className="settings-add-form">
         <input
@@ -843,7 +1083,7 @@ const CategoryManagement: React.FC = () => {
               <h2>Confirm Delete</h2>
               <button className="modal-close" onClick={() => setConfirmDeleteId(null)}>✕</button>
             </div>
-            <p>Are you sure you want to delete this category? Items using it will be reassigned to "household".</p>
+            <p>Are you sure you want to delete this category? Items using it will be reassigned to &quot;uncategorized&quot;.</p>
             <div className="form-actions">
               <button className="btn btn--secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
               <button className="btn btn--primary settings-btn-danger" onClick={() => handleDelete(confirmDeleteId)}>Delete</button>
@@ -1145,6 +1385,7 @@ const ThemeSelector: React.FC = () => {
 // ===========================================================================
 
 const ListManagement: React.FC = () => {
+  const { showUndo } = useUndoSnackbar();
   const [taskLists, setTaskLists] = useState<TaskList[]>([]);
   const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1267,9 +1508,28 @@ const ListManagement: React.FC = () => {
   };
 
   const handleDeleteShoppingList = async (id: string) => {
+    // Capture the full entity payload BEFORE deleting so it can be restored.
+    const deletedList = shoppingLists.find((l) => l.id === id);
     try {
       await shoppingListApi.remove(id);
       await fetchLists();
+      if (deletedList) {
+        // Offer an Undo_Snackbar bound to the captured payload. The restore
+        // endpoint recreates the list from its original id via ON CONFLICT DO NOTHING.
+        showUndo({
+          itemName: deletedList.name,
+          actionDescription: 'Shopping list deleted',
+          onUndo: async () => {
+            await shoppingListApi.restore({
+              id: deletedList.id,
+              name: deletedList.name,
+              isDefault: deletedList.isDefault,
+              createdAt: deletedList.createdAt,
+            });
+            await fetchLists();
+          },
+        });
+      }
     } catch {
       setError('Failed to delete shopping list');
     }
@@ -1458,6 +1718,26 @@ const BackupRestore: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  // Read-only scheduled-backup config status (from add-on options; null while
+  // loading, 'unavailable' if the request fails so the panel never crashes).
+  const [backupConfig, setBackupConfig] = useState<BackupStatus | null>(null);
+  const [backupConfigUnavailable, setBackupConfigUnavailable] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    adminApi
+      .getBackupConfig()
+      .then((cfg) => {
+        if (!cancelled) setBackupConfig(cfg);
+      })
+      .catch(() => {
+        if (!cancelled) setBackupConfigUnavailable(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleExport = async () => {
     setExporting(true);
     setStatus(null);
@@ -1560,6 +1840,52 @@ const BackupRestore: React.FC = () => {
       <p className="settings-warning">
         ⚠️ Restoring a backup will replace all existing data. This action cannot be undone.
       </p>
+
+      <h3 style={{ marginTop: 24, marginBottom: 8, fontSize: '1rem' }}>Scheduled Backups</h3>
+      <p style={{ marginBottom: 12, color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+        These settings are configured in the add-on options and applied on restart (like the
+        admin API secret). The encryption key is never shown here.
+      </p>
+      {backupConfigUnavailable ? (
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', fontStyle: 'italic' }}>
+          Backup status unavailable.
+        </p>
+      ) : backupConfig === null ? (
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>Loading backup status…</p>
+      ) : (
+        <div className="settings-list">
+          <div className="settings-list-item">
+            <span className="settings-list-name">Scheduled backups</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              {backupConfig.enabled ? '✅ Enabled' : '⚪ Disabled'}
+            </span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Schedule</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', textTransform: 'capitalize' }}>
+              {backupConfig.schedule}
+            </span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Encryption</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              {backupConfig.encryptionEnabled ? '✅ Enabled' : '⚪ Disabled'}
+            </span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Encryption key</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              {backupConfig.hasEncryptionKey ? '🔑 Configured' : '— Not set'}
+            </span>
+          </div>
+          <div className="settings-list-item">
+            <span className="settings-list-name">Retention count</span>
+            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem' }}>
+              {backupConfig.retentionCount}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1568,7 +1894,7 @@ const BackupRestore: React.FC = () => {
 // AboutSection
 // ===========================================================================
 
-const APP_VERSION = '1.3.3';
+const APP_VERSION = '1.4.0';
 
 const AboutSection: React.FC = () => {
   const [serverInfo, setServerInfo] = useState<{ status: string; database?: string } | null>(null);
@@ -1639,7 +1965,7 @@ const AboutSection: React.FC = () => {
 // ActivityLog
 // ===========================================================================
 
-const getEventIcon = (type: ActivityEntry['type']): string => {
+const getEventIcon = (type: ActivityEntry['type'] | string): string => {
   switch (type) {
     case 'task_completed': return '✅';
     case 'item_purchased': return '🛒';
@@ -1653,7 +1979,7 @@ const getEventIcon = (type: ActivityEntry['type']): string => {
   }
 };
 
-const getEventLabel = (type: ActivityEntry['type']): string => {
+const getEventLabel = (type: ActivityEntry['type'] | string): string => {
   switch (type) {
     case 'task_completed': return 'completed task';
     case 'item_purchased': return 'purchased item';
@@ -1668,33 +1994,43 @@ const getEventLabel = (type: ActivityEntry['type']): string => {
 };
 
 const ActivityLog: React.FC = () => {
-  const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [users, setUsers] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [usersError, setUsersError] = useState('');
+
+  // Cursor-paginated activity feed with load-more + infinite scroll.
+  // Default Page_Size (50) is applied server-side when limit is omitted.
+  const fetchActivityPage = useCallback(
+    (cursor?: string) => activityApi.getActivityPaginated(cursor),
+    [],
+  );
+  const {
+    items: entries,
+    loading,
+    loadingMore,
+    hasMore,
+    error: feedError,
+    loadMore,
+    sentinelRef,
+  } = useInfiniteScroll<PaginatedActivityEntry>(fetchActivityPage, []);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUsers = async () => {
       try {
-        const [activityData, usersData] = await Promise.all([
-          activityApi.getActivity(30),
-          userApi.getAllUsers(),
-        ]);
-        setEntries(activityData);
+        const usersData = await userApi.getAllUsers();
         const userMap: Record<string, string> = {};
         for (const u of usersData) {
           userMap[u.id] = u.name;
         }
         setUsers(userMap);
-        setError('');
+        setUsersError('');
       } catch {
-        setError('Failed to load activity');
-      } finally {
-        setLoading(false);
+        setUsersError('Failed to load activity');
       }
     };
-    fetchData();
+    void fetchUsers();
   }, []);
+
+  const error = feedError ?? usersError;
 
   const formatTimestamp = (ts: string) => {
     const date = new Date(ts);
@@ -1717,21 +2053,21 @@ const ActivityLog: React.FC = () => {
     <div className="settings-section">
       <h2>Activity</h2>
       <p style={{ marginBottom: 16, color: 'var(--color-text-secondary)' }}>
-        Recent activity across the household (last 30 days).
+        Recent activity across the household.
       </p>
 
       {error && <p className="error-state">{error}</p>}
 
       {entries.length === 0 && !error && (
         <div className="empty-state">
-          <p>No activity in the last 30 days.</p>
+          <p>No activity yet.</p>
         </div>
       )}
 
       {entries.length > 0 && (
         <div className="settings-list">
-          {entries.map((entry, idx) => (
-            <div key={`${entry.timestamp}-${idx}`} className="settings-list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+          {entries.map((entry) => (
+            <div key={entry.id} className="settings-list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
                 <span style={{ fontSize: '1.1rem' }}>
                   {getEventIcon(entry.type)}
@@ -1748,6 +2084,23 @@ const ActivityLog: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Infinite-scroll sentinel: loading the next page when scrolled near the end. */}
+      {hasMore && <div ref={sentinelRef} aria-hidden="true" style={{ height: 1 }} />}
+
+      {/* Explicit load-more control + "more available" indicator (Req 5.5, 5.6). */}
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
         </div>
       )}
     </div>

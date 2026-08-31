@@ -12,6 +12,7 @@ import {
   deleteShoppingList,
   findShoppingListByName,
 } from '../db/listQueries';
+import { query } from '../db/connection';
 
 const router = Router();
 
@@ -63,6 +64,68 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to create shopping list',
+    });
+  }
+});
+
+/**
+ * POST /api/shopping-lists/restore
+ * Restore (recreate) a previously deleted shopping list from a full payload
+ * including its original id. Uses INSERT ... ON CONFLICT (id) DO NOTHING so
+ * restoring a list that still exists is a harmless no-op success, and
+ * restoring one that was deleted recreates it.
+ *
+ * Request body (full shopping list, camelCase or snake_case accepted):
+ * {
+ *   "id": "uuid",
+ *   "name": "Party Supplies",
+ *   "isDefault": false,
+ *   "createdAt": "..."
+ * }
+ *
+ * Response: 200 OK
+ * { "message": "Shopping list restored successfully" }
+ *
+ * Response: 400 Bad Request (missing payload)
+ * { "status": "error", "message": "..." }
+ *
+ * Requirements: 4.9, 4.10
+ */
+router.post('/restore', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body ?? {};
+    const id = body.id;
+    const name = body.name;
+    const isDefault = body.isDefault ?? body.is_default ?? false;
+    const createdAt = body.createdAt ?? body.created_at ?? null;
+
+    const missingFields: string[] = [];
+    if (!id) missingFields.push('id');
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      missingFields.push('name');
+    }
+
+    if (missingFields.length > 0) {
+      res.status(400).json({
+        status: 'error',
+        message: `Missing required fields: ${missingFields.join(', ')}`,
+      });
+      return;
+    }
+
+    await query(
+      `INSERT INTO shopping_lists (id, name, is_default, created_at)
+       VALUES ($1, $2, $3, COALESCE($4, CURRENT_TIMESTAMP))
+       ON CONFLICT (id) DO NOTHING`,
+      [id, name, isDefault, createdAt]
+    );
+
+    res.status(200).json({ message: 'Shopping list restored successfully' });
+  } catch (error) {
+    console.error('Error restoring shopping list:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to restore shopping list',
     });
   }
 });
