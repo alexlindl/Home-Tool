@@ -132,6 +132,7 @@ export interface ShoppingItem {
   isPurchased: boolean;
   purchasedBy?: string; // User ID
   purchasedAt?: string; // ISO date string
+  listId?: string; // Shopping list UUID (which list the item belongs to)
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
 }

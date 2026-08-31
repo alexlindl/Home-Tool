@@ -218,7 +218,12 @@ export const ShoppingList: React.FC = () => {
     refreshList();
     // Offer an Undo_Snackbar bound to the captured payload. The restore
     // endpoint recreates the item from its original id via ON CONFLICT DO NOTHING.
-    const listId = selectedListId && selectedListId !== 'all' ? selectedListId : undefined;
+    // Prefer the deleted item's OWN list so undo restores it to where it lived,
+    // regardless of the current list filter (falling back to the selected list,
+    // then null, only when the item carried no list of its own).
+    const fallbackListId =
+      selectedListId && selectedListId !== 'all' ? selectedListId : undefined;
+    const listId = deletedItem.listId ?? fallbackListId;
     showUndo({
       itemName: deletedItem.name,
       actionDescription: 'Item deleted',

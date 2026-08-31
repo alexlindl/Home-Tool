@@ -34,6 +34,7 @@ export interface ShoppingItem {
   isPurchased: boolean;
   purchasedBy?: string;    // User ID
   purchasedAt?: Date;
+  listId?: string;         // Shopping list UUID (which list the item belongs to)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +50,7 @@ export interface ShoppingItemRow {
   is_purchased: boolean;
   purchased_by: string | null;
   purchased_at: Date | null;
+  list_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -65,6 +67,7 @@ export const shoppingItemFromRow = (row: ShoppingItemRow): ShoppingItem => {
     isPurchased: row.is_purchased,
     purchasedBy: row.purchased_by || undefined,
     purchasedAt: row.purchased_at || undefined,
+    listId: row.list_id || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

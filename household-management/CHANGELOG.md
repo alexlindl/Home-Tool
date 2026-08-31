@@ -2,6 +2,12 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.4.1] - 2026-08-31
+
+### Fixed
+- Undoing a task deletion now restores the task to its original list rather than the currently filtered list (the frontend task model now carries its `listId`)
+- Undoing a shopping item deletion now restores the item to its original list rather than the currently filtered list — the shopping item API now exposes `listId`, so an item deleted while viewing "All lists" is restored to the correct list instead of becoming unassigned
+
 ## [1.4.0] - 2026-08-31
 
 ### Added
@@ -15,9 +21,6 @@ All notable changes to the Household Management add-on will be documented in thi
 
 ### Changed
 - Category dropdowns in the add and edit shopping item forms now honor the configured category sort order
-
-### Fixed
-- Undoing a task deletion now restores the task to its original list rather than the currently filtered list (the frontend task model now carries its `listId`)
 
 ## [1.3.3] - 2026-08-31
 
