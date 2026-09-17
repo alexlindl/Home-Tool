@@ -237,7 +237,7 @@ router.get('/backup', async (_req: Request, res: Response): Promise<void> => {
     const categories = await query('SELECT * FROM categories');
 
     const backup = {
-      version: '1.5.3',
+      version: '1.5.4',
       exportedAt: new Date().toISOString(),
       data: {
         users: users.rows,
@@ -713,27 +713,62 @@ router.post('/bring-tasks-up-to-date', async (req: Request, res: Response): Prom
     // rolls back and no task is left partially completed (AC 9.8). Follows the
     // getClient BEGIN/COMMIT/ROLLBACK pattern from
     // categoryQueries.reorderCategories.
-    let completedCount = 0;
+    //
+    // A recurring task that is several intervals overdue advances only ONE
+    // interval per completion, and that newly spawned occurrence may itself
+    // still be overdue. To genuinely bring tasks "up to date", we loop:
+    // repeatedly find and complete the overdue pending tasks until none
+    // remain, so each recurring task rolls forward to its first occurrence
+    // that is today or later. A hard iteration cap prevents an infinite loop
+    // if a pattern ever fails to advance past the current time.
+    // `tasksCaughtUp` = tasks that were overdue when the operation started
+    // (the ones the user saw as overdue). `occurrencesCompleted` = the total
+    // number of completions performed, which is larger because catching up a
+    // task that is several intervals overdue completes several intermediate
+    // occurrences.
+    let tasksCaughtUp = 0;
+    let occurrencesCompleted = 0;
+    const MAX_COMPLETIONS = 10000; // safety cap across the whole run
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      // Snapshot the overdue task id set ONCE up front, locking those rows.
-      // Iterating this fixed list means recurring completions that create a
-      // new (possibly overdue) future occurrence are not re-processed.
-      const overdue = await client.query(
-        "SELECT id FROM tasks WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < NOW() FOR UPDATE",
-      );
+      let firstPass = true;
+      let processedThisPass = true;
+      while (processedThisPass) {
+        processedThisPass = false;
 
-      for (const row of overdue.rows) {
-        // completeTaskWithClient applies the existing completion semantics on
-        // the transaction client: writes task_history, advances recurring
-        // tasks, and completes non-recurring tasks. `userId` is credited with
-        // the completion.
-        await taskService.completeTaskWithClient(client, row.id, userId);
+        // Re-query each pass so occurrences spawned by the previous pass that
+        // are still overdue get caught up too. Locking the rows we're about to
+        // complete keeps the pass consistent.
+        const overdue = await client.query(
+          "SELECT id FROM tasks WHERE status = 'pending' AND due_date IS NOT NULL AND due_date < NOW() ORDER BY due_date ASC FOR UPDATE",
+        );
+
+        if (firstPass) {
+          // The first pass sees exactly the set of tasks that were overdue
+          // when the user triggered the operation.
+          tasksCaughtUp = overdue.rowCount ?? 0;
+          firstPass = false;
+        }
+
+        for (const row of overdue.rows as { id: string }[]) {
+          if (occurrencesCompleted >= MAX_COMPLETIONS) {
+            break;
+          }
+          // completeTaskWithClient applies the existing completion semantics on
+          // the transaction client: writes task_history, advances recurring
+          // tasks, and completes non-recurring tasks. `userId` is credited with
+          // the completion.
+          await taskService.completeTaskWithClient(client, row.id, userId);
+          occurrencesCompleted++;
+          processedThisPass = true;
+        }
+
+        if (occurrencesCompleted >= MAX_COMPLETIONS) {
+          break;
+        }
       }
-
-      completedCount = overdue.rowCount ?? 0;
 
       await client.query('COMMIT');
     } catch (txnError) {
@@ -747,7 +782,13 @@ router.post('/bring-tasks-up-to-date', async (req: Request, res: Response): Prom
       client.release();
     }
 
-    res.status(200).json({ completedCount });
+    // `completedCount` reports the tasks that were overdue at the start (what
+    // the user saw), so the UI message stays meaningful. `occurrencesCompleted`
+    // exposes the raw total of intermediate completions for diagnostics.
+    res.status(200).json({
+      completedCount: tasksCaughtUp,
+      occurrencesCompleted,
+    });
   } catch (error) {
     console.error('Error bringing tasks up to date:', error);
     res.status(500).json({

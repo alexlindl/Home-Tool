@@ -10,6 +10,8 @@
  * recipe parser (parseRecipeText) run over the page text.
  */
 
+import { splitIngredientLine } from './recipeTextParser';
+
 export interface ImportedRecipe {
   name: string;
   summary: string;
@@ -83,16 +85,9 @@ const stripHtml = (input: string): string =>
  * quantity and the ingredient name. Mirrors the paste parser's heuristic.
  */
 export const splitIngredient = (raw: string): { name: string; quantity?: string } => {
-  const line = stripHtml(raw);
-  if (line.length === 0) return { name: '' };
-
-  const match = line.match(
-    /^((?:\d+\s*\/\s*\d+|\d+(?:\.\d+)?|[½¼¾⅓⅔⅛])(?:\s*[a-zA-Z.]+)?)\s+(.*)$/,
-  );
-  if (match && match[2] && match[2].trim().length > 0) {
-    return { quantity: match[1]!.trim(), name: match[2].trim() };
-  }
-  return { name: line };
+  // Delegate to the shared plain-text splitter so JSON-LD imports and pasted
+  // text split quantity/name identically (e.g. "3 large eggs").
+  return splitIngredientLine(stripHtml(raw));
 };
 
 /**
@@ -229,7 +224,10 @@ const mapRecipeNode = (node: Record<string, unknown>): ImportedRecipe => {
   const rawIngredients = node.recipeIngredient ?? node.ingredients;
   const ingredients = Array.isArray(rawIngredients)
     ? rawIngredients
-        .map((ing) => splitIngredient(String(ing)))
+        // Only string entries are valid ingredient text; skip objects so we
+        // never produce a literal "[object Object]" ingredient name.
+        .filter((ing): ing is string => typeof ing === 'string')
+        .map((ing) => splitIngredient(ing))
         .filter((ing) => ing.name.length > 0)
     : [];
 

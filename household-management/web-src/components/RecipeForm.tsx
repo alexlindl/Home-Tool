@@ -130,21 +130,43 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
   // --- Import / paste ------------------------------------------------------
   const applyImport = () => {
     const parsed = parseRecipeText(importText);
-    if (parsed.name) setName(parsed.name);
-    if (parsed.summary) setSummary(parsed.summary);
-    if (parsed.steps.length > 0) setSteps(parsed.steps);
-    if (parsed.ingredients.length > 0) {
-      setIngredients(
-        parsed.ingredients.map((ing) => ({
-          key: nextKey(),
-          name: ing.name,
-          quantity: ing.quantity ?? '',
-          category: '',
-        })),
-      );
-    }
+    applyParsed(parsed.name, parsed.summary, parsed.steps, parsed.ingredients);
     setShowImport(false);
     setImportText('');
+  };
+
+  /**
+   * Replace the form's name/summary/steps/ingredients with a parsed result.
+   * Applies as a full replace (empty fields clear) so a second import never
+   * merges leftover rows from a previous one. No-ops entirely if the parse
+   * yielded nothing, so it can't wipe a form the user already filled in.
+   */
+  const applyParsed = (
+    parsedName: string,
+    parsedSummary: string,
+    parsedSteps: string[],
+    parsedIngredients: { name: string; quantity?: string }[],
+  ) => {
+    const gotSomething =
+      Boolean(parsedName) ||
+      Boolean(parsedSummary) ||
+      parsedSteps.length > 0 ||
+      parsedIngredients.length > 0;
+    if (!gotSomething) return;
+
+    setName(parsedName);
+    setSummary(parsedSummary);
+    setSteps(parsedSteps.length > 0 ? parsedSteps : ['']);
+    setIngredients(
+      parsedIngredients.length > 0
+        ? parsedIngredients.map((ing) => ({
+            key: nextKey(),
+            name: ing.name,
+            quantity: ing.quantity ?? '',
+            category: '',
+          }))
+        : [{ key: nextKey(), name: '', quantity: '', category: '' }],
+    );
   };
 
   // Import directly from a recipe URL: the backend fetches + parses the page.
@@ -155,19 +177,7 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
     setImportError('');
     try {
       const imported = await recipeApi.importFromUrl(url);
-      if (imported.name) setName(imported.name);
-      if (imported.summary) setSummary(imported.summary);
-      if (imported.steps.length > 0) setSteps(imported.steps);
-      if (imported.ingredients.length > 0) {
-        setIngredients(
-          imported.ingredients.map((ing) => ({
-            key: nextKey(),
-            name: ing.name,
-            quantity: ing.quantity ?? '',
-            category: '',
-          })),
-        );
-      }
+      applyParsed(imported.name, imported.summary, imported.steps, imported.ingredients);
       setSourceUrl(imported.sourceUrl || url);
       setShowImport(false);
       setImportUrl('');

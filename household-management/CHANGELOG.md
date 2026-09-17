@@ -2,7 +2,13 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
-## [1.5.3] - 2026-09-17
+## [1.5.4] - 2026-09-17
+
+### Fixed
+- "Bring tasks up to date" now rolls each overdue recurring task forward to its next occurrence that is today or later, instead of advancing it by only one interval. Previously a task that was several intervals overdue could be left with a due date still in the past (or appear to skip ahead), so it didn't show up as current; it now catches up in a single action
+- Importing or pasting a recipe now fully replaces the form contents, so importing a second recipe no longer leaves ingredients or steps behind from the first
+- Recipe import no longer produces a stray "[object Object]" ingredient when a site publishes an ingredient as structured data rather than plain text
+- Ingredient quantities are now split from the name consistently whether a recipe is imported from a URL or pasted as text
 
 ### Fixed
 - Recipe URL import failed for every site with "Could not reach the recipe page", even for sites that publish importable recipe data. The SSRF protection added in the previous version pinned the connection to a validated IP using a custom DNS lookup that didn't follow Node's expected format, so the connection errored before any request was made. Imports now work again (verified against nhs.uk). Sites that block automated access (e.g. some large retailers returning HTTP 403) still fall back to the copy-and-paste option
