@@ -2,6 +2,17 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.5.0] - 2026-09-17
+
+### Added
+- New Recipes section: a shared household recipe collection with a name, summary, ordered steps, and an ingredient list (each ingredient can carry a quantity and a shopping category)
+- Create recipes directly in the app, or paste recipe text from another source and have it parsed into the name, summary, ingredients, and steps for editing
+- Recipe detail view with an ingredient checklist: tick off the ingredients you already have, then add the remaining "needed" ingredients to any shopping list in one action (ingredients with an unknown category fall back to "uncategorized")
+- Recipes API (`/api/recipes`): list, create, read, update, delete, restore, and `POST /api/recipes/:id/add-to-shopping`
+- Undo snackbar when deleting a recipe, restoring the full recipe including its ingredients within the undo window
+- Activity log entries for recipe creation and for adding recipe ingredients to a shopping list
+- Bottom-navigation entry for Recipes
+
 ## [1.4.3] - 2026-08-31
 
 ### Changed

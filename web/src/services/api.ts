@@ -24,6 +24,10 @@ import type {
   ShoppingSearchResult,
   PaginatedResponse,
   BackupStatus,
+  Recipe,
+  CreateRecipeInput,
+  UpdateRecipeInput,
+  AddIngredientsResult,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -728,5 +732,68 @@ export const shoppingListApi = {
    */
   async restore(payload: Record<string, unknown>): Promise<void> {
     await apiClient.post('/shopping-lists/restore', payload);
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Recipe API
+// ---------------------------------------------------------------------------
+
+export const recipeApi = {
+  /** Get all recipes with their ingredients */
+  async getAll(): Promise<Recipe[]> {
+    const response = await apiClient.get<{ recipes: Recipe[] }>('/recipes');
+    return response.data.recipes;
+  },
+
+  /** Get a single recipe by ID */
+  async getById(id: string): Promise<Recipe> {
+    const response = await apiClient.get<{ recipe: Recipe }>(`/recipes/${id}`);
+    return response.data.recipe;
+  },
+
+  /** Create a new recipe */
+  async create(input: CreateRecipeInput): Promise<Recipe> {
+    const response = await apiClient.post<{ recipe: Recipe }>('/recipes', input);
+    return response.data.recipe;
+  },
+
+  /** Update an existing recipe */
+  async update(id: string, input: UpdateRecipeInput): Promise<Recipe> {
+    const response = await apiClient.put<{ recipe: Recipe }>(`/recipes/${id}`, input);
+    return response.data.recipe;
+  },
+
+  /** Delete a recipe */
+  async remove(id: string): Promise<void> {
+    await apiClient.delete(`/recipes/${id}`);
+  },
+
+  /**
+   * Add selected recipe ingredients to a shopping list. Omit `ingredientNames`
+   * to add every ingredient. Returns the created shopping items plus any
+   * skipped ingredient names.
+   */
+  async addToShopping(
+    id: string,
+    addedBy: string,
+    listId?: string,
+    ingredientNames?: string[],
+  ): Promise<AddIngredientsResult> {
+    const response = await apiClient.post<AddIngredientsResult>(
+      `/recipes/${id}/add-to-shopping`,
+      { addedBy, listId, ingredientNames },
+    );
+    return response.data;
+  },
+
+  /**
+   * Restore (recreate) a previously deleted recipe from a full payload
+   * including its original id. Backed by `POST /api/recipes/restore` which uses
+   * `INSERT ... ON CONFLICT (id) DO NOTHING`, so restoring a recipe that still
+   * exists is a harmless no-op success. Used by the Undo snackbar.
+   */
+  async restore(payload: Record<string, unknown>): Promise<void> {
+    await apiClient.post('/recipes/restore', payload);
   },
 };

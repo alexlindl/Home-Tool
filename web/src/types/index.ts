@@ -373,3 +373,74 @@ export interface ShoppingList {
   isDefault: boolean;
   createdAt: string;
 }
+
+// ============================================================
+// Recipe Types
+// ============================================================
+
+/**
+ * A single recipe ingredient as returned by the API.
+ */
+export interface RecipeIngredient {
+  id: string;
+  recipeId: string;
+  name: string;
+  quantity?: string; // free-form measure, e.g. "2 cups"
+  category?: string; // shopping category
+  sortPosition: number;
+  createdAt: string; // ISO date string
+}
+
+/**
+ * Recipe model as returned by GET /api/recipes and GET /api/recipes/:id.
+ * Ingredients are nested; steps is an ordered array of step strings.
+ */
+export interface Recipe {
+  id: string;
+  name: string;
+  summary?: string;
+  steps: string[];
+  createdBy?: string; // User ID (attribution)
+  ingredients: RecipeIngredient[];
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+}
+
+/**
+ * Ingredient payload when creating/updating a recipe.
+ */
+export interface RecipeIngredientInput {
+  name: string;
+  quantity?: string;
+  category?: string;
+}
+
+/**
+ * Input for creating a new recipe.
+ */
+export interface CreateRecipeInput {
+  name: string;
+  summary?: string;
+  steps: string[];
+  ingredients: RecipeIngredientInput[];
+  createdBy?: string;
+}
+
+/**
+ * Input for updating an existing recipe. Provided fields replace their value;
+ * `steps` and `ingredients` fully replace the existing set when present.
+ */
+export interface UpdateRecipeInput {
+  name?: string;
+  summary?: string | null;
+  steps?: string[];
+  ingredients?: RecipeIngredientInput[];
+}
+
+/**
+ * Result of POST /api/recipes/:id/add-to-shopping.
+ */
+export interface AddIngredientsResult {
+  added: ShoppingItem[];
+  skipped: string[];
+}

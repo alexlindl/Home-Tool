@@ -20,6 +20,12 @@ export {
   ShoppingSummaryFilters,
 } from './SummaryService';
 export { WidgetService, widgetService, WidgetOptions } from './WidgetService';
+export {
+  RecipeService,
+  recipeService,
+  RecipeValidationError,
+  AddIngredientsResult,
+} from './RecipeService';
 export { NotificationService, notificationService, NotificationType } from './NotificationService';
 export {
   BackupSchedulerService,

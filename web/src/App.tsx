@@ -15,6 +15,7 @@ import { UndoSnackbar } from '@/components/UndoSnackbar';
 import { UndoSnackbarProvider } from '@/contexts/UndoSnackbarContext';
 import { TaskDashboard } from '@/pages/TaskDashboard';
 import { ShoppingList } from '@/pages/ShoppingList';
+import { Recipes } from '@/pages/Recipes';
 import { TaskHistory } from '@/pages/TaskHistory';
 import { Settings } from '@/pages/Settings';
 
@@ -115,6 +116,7 @@ function AppContent() {
           <Route path="/" element={<TaskDashboard />} />
           <Route path="/tasks" element={<TaskDashboard />} />
           <Route path="/shopping" element={<ShoppingList />} />
+          <Route path="/recipes" element={<Recipes />} />
           <Route path="/history" element={<TaskHistory />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
@@ -128,6 +130,10 @@ function AppContent() {
         <NavLink to="/shopping" className="bottom-nav-item">
           <span className="bottom-nav-icon">🛒</span>
           <span className="bottom-nav-label">Shopping</span>
+        </NavLink>
+        <NavLink to="/recipes" className="bottom-nav-item">
+          <span className="bottom-nav-icon">🍳</span>
+          <span className="bottom-nav-label">Recipes</span>
         </NavLink>
         <NavLink to="/history" className="bottom-nav-item">
           <span className="bottom-nav-icon">📊</span>

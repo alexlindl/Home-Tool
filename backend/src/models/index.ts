@@ -6,6 +6,7 @@
 export * from './User';
 export * from './Task';
 export * from './Shopping';
+export * from './Recipe';
 
 // Per-list category position (backend db layer)
 export interface ListCategoryPositionRow {

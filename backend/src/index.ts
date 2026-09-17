@@ -17,6 +17,7 @@ import settingsRoutes from './routes/settingsRoutes';
 import activityRoutes from './routes/activityRoutes';
 import authRoutes from './routes/authRoutes';
 import userSettingsRoutes from './routes/userSettingsRoutes';
+import recipeRoutes from './routes/recipeRoutes';
 import { sanitizeStrings } from './middleware/validation';
 import { requireAdminSecret } from './middleware/adminAuth';
 import { initializeWebSocket } from './websocket';
@@ -87,7 +88,7 @@ app.get('/health/db', async (_req: Request, res: Response) => {
 app.get('/', (_req: Request, res: Response) => {
   res.json({ 
     message: 'Household Management API',
-    version: '1.4.3',
+    version: '1.5.0',
     endpoints: {
       health: '/health',
       healthDb: '/health/db',
@@ -110,6 +111,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user-settings', userSettingsRoutes);
+app.use('/api/recipes', recipeRoutes);
 
 // 404 handler
 app.use((_req: Request, res: Response) => {
