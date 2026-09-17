@@ -2,6 +2,20 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.5.1] - 2026-09-17
+
+### Added
+- Import recipes directly from a URL: paste a link to a recipe page and the add-on fetches it and auto-fills the name, summary, ingredients, and steps for you to review before saving. Works with the many recipe sites that publish schema.org/Recipe structured data (most major sites and food blogs), and falls back to parsing the page text when structured data is unavailable
+- Imported recipes remember their source; the recipe detail view links back to the original page
+- The existing "paste recipe text" option remains available alongside URL import
+
+### Fixed
+- Pasting a recipe now correctly extracts ingredients and steps even when the text has no explicit "Ingredients:" / "Steps:" headings (e.g. text copied straight from a recipe website): lines are classified by shape, and amounts written with fractions or unicode fractions (½, ¼, "1 1/2") are parsed into the quantity field
+- The ingredient name field in the recipe form is no longer squeezed out of view on narrow screens; each ingredient now shows a full-width name field with quantity and category on a second row
+
+### Security
+- The recipe-import fetch runs server-side with an SSRF guard that blocks loopback, private, link-local, and reserved IP ranges (re-checked across redirects), plus a response-size cap and request timeout. Only the URL you provide is sent; no app data leaves the add-on
+
 ## [1.5.0] - 2026-09-17
 
 ### Added

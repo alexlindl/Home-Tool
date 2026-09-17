@@ -104,14 +104,15 @@ export const createRecipe = async (input: CreateRecipeInput): Promise<Recipe> =>
     await client.query('BEGIN');
 
     const recipeResult = await client.query(
-      `INSERT INTO recipes (name, summary, steps, created_by)
-       VALUES ($1, $2, $3::jsonb, $4)
+      `INSERT INTO recipes (name, summary, steps, created_by, source_url)
+       VALUES ($1, $2, $3::jsonb, $4, $5)
        RETURNING *`,
       [
         input.name,
         input.summary ?? null,
         JSON.stringify(input.steps ?? []),
         input.createdBy ?? null,
+        input.sourceUrl ?? null,
       ]
     );
 
@@ -169,6 +170,10 @@ export const updateRecipe = async (
     if (input.steps !== undefined) {
       updates.push(`steps = $${paramCount++}::jsonb`);
       values.push(JSON.stringify(input.steps));
+    }
+    if (input.sourceUrl !== undefined) {
+      updates.push(`source_url = $${paramCount++}`);
+      values.push(input.sourceUrl);
     }
 
     updates.push('updated_at = CURRENT_TIMESTAMP');
@@ -238,6 +243,7 @@ export const restoreRecipe = async (payload: {
   summary?: string | null;
   steps?: string[];
   createdBy?: string | null;
+  sourceUrl?: string | null;
   ingredients?: RecipeIngredientInput[];
   createdAt?: string | null;
 }): Promise<void> => {
@@ -246,8 +252,8 @@ export const restoreRecipe = async (payload: {
     await client.query('BEGIN');
 
     const inserted = await client.query(
-      `INSERT INTO recipes (id, name, summary, steps, created_by, created_at)
-       VALUES ($1, $2, $3, $4::jsonb, $5, COALESCE($6, CURRENT_TIMESTAMP))
+      `INSERT INTO recipes (id, name, summary, steps, created_by, source_url, created_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, COALESCE($7, CURRENT_TIMESTAMP))
        ON CONFLICT (id) DO NOTHING`,
       [
         payload.id,
@@ -255,6 +261,7 @@ export const restoreRecipe = async (payload: {
         payload.summary ?? null,
         JSON.stringify(payload.steps ?? []),
         payload.createdBy ?? null,
+        payload.sourceUrl ?? null,
         payload.createdAt ?? null,
       ]
     );

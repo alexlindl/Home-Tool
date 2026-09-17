@@ -2,13 +2,13 @@
 
 A Home Assistant add-on for coordinating household chores and shopping lists among household members. Runs self-contained on your HA instance with real-time sync via WebSocket.
 
-**Current version: 1.5.0**
+**Current version: 1.5.1**
 
 ## Features
 
 - **Task management** — create, assign, complete, and recur tasks across multiple lists
 - **Shopping lists** — categorized items with purchase tracking across multiple lists
-- **Recipes** — shared recipes with summary, steps, and an ingredient list; paste text from other sources to pre-fill the form, then check off what you have and add the rest to a shopping list
+- **Recipes** — shared recipes with summary, steps, and an ingredient list; import from a recipe URL or paste text to pre-fill the form, then check off what you have and add the rest to a shopping list
 - **Multiple lists** — separate task lists and shopping lists with rename and move-between support
 - **Enhanced recurrence** — every N days, every N weeks, specific weekdays, Nth weekday of month
 - **Backlog tasks** — tasks without due dates for unscheduled work
@@ -101,6 +101,7 @@ sudo service postgresql status
 - `PUT /api/shopping/:id/move` — move item to another list
 
 ### Recipe Actions
+- `POST /api/recipes/import` — fetch a recipe URL and return parsed fields (preview, not saved)
 - `POST /api/recipes/:id/add-to-shopping` — add selected recipe ingredients to a shopping list
 - `POST /api/recipes/restore` — restore a deleted recipe (Undo)
 

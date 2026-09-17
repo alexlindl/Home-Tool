@@ -51,6 +51,10 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
   const [categories, setCategories] = useState<string[]>([]);
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [sourceUrl, setSourceUrl] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -77,14 +81,18 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
             }))
           : [{ key: nextKey(), name: '', quantity: '', category: '' }],
       );
+      setSourceUrl(recipe.sourceUrl);
     } else {
       setName('');
       setSummary('');
       setSteps(['']);
       setIngredients([{ key: nextKey(), name: '', quantity: '', category: '' }]);
+      setSourceUrl(undefined);
     }
     setShowImport(false);
     setImportText('');
+    setImportUrl('');
+    setImportError('');
     setError('');
   }, [open, recipe]);
 
@@ -139,6 +147,41 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
     setImportText('');
   };
 
+  // Import directly from a recipe URL: the backend fetches + parses the page.
+  const handleImportUrl = async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+    setImporting(true);
+    setImportError('');
+    try {
+      const imported = await recipeApi.importFromUrl(url);
+      if (imported.name) setName(imported.name);
+      if (imported.summary) setSummary(imported.summary);
+      if (imported.steps.length > 0) setSteps(imported.steps);
+      if (imported.ingredients.length > 0) {
+        setIngredients(
+          imported.ingredients.map((ing) => ({
+            key: nextKey(),
+            name: ing.name,
+            quantity: ing.quantity ?? '',
+            category: '',
+          })),
+        );
+      }
+      setSourceUrl(imported.sourceUrl || url);
+      setShowImport(false);
+      setImportUrl('');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setImportError(
+        axiosErr.response?.data?.message ||
+          'Could not import from that URL. Try copying the recipe text and pasting it instead.',
+      );
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -158,6 +201,7 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
         }))
         .filter((ing) => ing.name.length > 0),
       createdBy: currentUserId,
+      sourceUrl,
     };
 
     setSubmitting(true);
@@ -205,10 +249,42 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
               className="btn btn--secondary"
               onClick={() => setShowImport((v) => !v)}
             >
-              {showImport ? 'Hide import' : '📋 Paste / import a recipe'}
+              {showImport ? 'Hide import' : '🔗 Import from URL or paste a recipe'}
             </button>
             {showImport && (
               <div style={{ marginTop: '8px' }}>
+                <label htmlFor="recipe-import-url">Import from a recipe URL</label>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input
+                    id="recipe-import-url"
+                    type="url"
+                    value={importUrl}
+                    onChange={(e) => {
+                      setImportUrl(e.target.value);
+                      setImportError('');
+                    }}
+                    placeholder="https://example.com/best-pancakes"
+                    style={{ flex: 1 }}
+                    aria-label="Recipe URL to import"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={handleImportUrl}
+                    disabled={importing || !importUrl.trim()}
+                  >
+                    {importing ? 'Importing...' : 'Import'}
+                  </button>
+                </div>
+                {importError && (
+                  <p style={{ color: 'var(--color-danger, #e74c3c)', fontSize: '0.8rem', margin: '4px 0 0 0' }}>
+                    {importError}
+                  </p>
+                )}
+
+                <p style={{ fontSize: '0.8rem', opacity: 0.7, margin: '10px 0 4px 0' }}>
+                  Or paste the recipe text directly:
+                </p>
                 <textarea
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
@@ -264,47 +340,59 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
             {ingredients.map((ing) => (
               <div
                 key={ing.key}
-                style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}
+                style={{
+                  border: '1px solid var(--color-border, #333)',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  marginBottom: '8px',
+                }}
               >
-                <input
-                  type="text"
-                  value={ing.quantity ?? ''}
-                  onChange={(e) => updateIngredient(ing.key, 'quantity', e.target.value)}
-                  placeholder="Qty"
-                  aria-label="Ingredient quantity"
-                  style={{ width: '80px' }}
-                />
-                <input
-                  type="text"
-                  value={ing.name}
-                  onChange={(e) => updateIngredient(ing.key, 'name', e.target.value)}
-                  placeholder="Ingredient"
-                  aria-label="Ingredient name"
-                  style={{ flex: 1 }}
-                />
-                <select
-                  value={ing.category ?? ''}
-                  onChange={(e) => updateIngredient(ing.key, 'category', e.target.value)}
-                  aria-label="Ingredient category"
-                >
-                  <option value="">No category</option>
-                  {categories
-                    .filter((c) => c.toLowerCase() !== 'uncategorized')
-                    .map((c) => (
-                      <option key={c} value={c}>
-                        {c.charAt(0).toUpperCase() + c.slice(1)}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  type="button"
-                  className="btn btn--secondary"
-                  onClick={() => removeIngredient(ing.key)}
-                  aria-label="Remove ingredient"
-                  style={{ padding: '6px 10px', lineHeight: 1 }}
-                >
-                  ✕
-                </button>
+                {/* Row 1: full-width ingredient name so it is never squeezed. */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
+                  <input
+                    type="text"
+                    value={ing.name}
+                    onChange={(e) => updateIngredient(ing.key, 'name', e.target.value)}
+                    placeholder="Ingredient name"
+                    aria-label="Ingredient name"
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn--secondary"
+                    onClick={() => removeIngredient(ing.key)}
+                    aria-label="Remove ingredient"
+                    style={{ padding: '6px 10px', lineHeight: 1, flexShrink: 0 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {/* Row 2: quantity + category. */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={ing.quantity ?? ''}
+                    onChange={(e) => updateIngredient(ing.key, 'quantity', e.target.value)}
+                    placeholder="Qty (e.g. 2 cups)"
+                    aria-label="Ingredient quantity"
+                    style={{ width: '110px', flexShrink: 0 }}
+                  />
+                  <select
+                    value={ing.category ?? ''}
+                    onChange={(e) => updateIngredient(ing.key, 'category', e.target.value)}
+                    aria-label="Ingredient category"
+                    style={{ flex: 1, minWidth: 0 }}
+                  >
+                    <option value="">No category</option>
+                    {categories
+                      .filter((c) => c.toLowerCase() !== 'uncategorized')
+                      .map((c) => (
+                        <option key={c} value={c}>
+                          {c.charAt(0).toUpperCase() + c.slice(1)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
             ))}
             <button type="button" className="btn btn--secondary" onClick={addIngredient}>

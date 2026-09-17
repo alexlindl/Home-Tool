@@ -19,6 +19,7 @@ import {
   findRecipeByName,
 } from '../db/recipeQueries';
 import { getAllCategories } from '../db/categoryQueries';
+import { getUserById } from '../db/userQueries';
 import { shoppingService } from './ShoppingService';
 import { ShoppingItem } from '../models/Shopping';
 
@@ -117,6 +118,10 @@ export class RecipeService {
       steps,
       ingredients,
       createdBy: input.createdBy,
+      sourceUrl:
+        input.sourceUrl && input.sourceUrl.trim().length > 0
+          ? input.sourceUrl.trim()
+          : undefined,
     });
   }
 
@@ -158,6 +163,13 @@ export class RecipeService {
       ).ingredients;
     }
 
+    if (input.sourceUrl !== undefined) {
+      patch.sourceUrl =
+        input.sourceUrl && input.sourceUrl.trim().length > 0
+          ? input.sourceUrl.trim()
+          : null;
+    }
+
     return dbUpdateRecipe(id, patch);
   }
 
@@ -171,22 +183,29 @@ export class RecipeService {
   /**
    * Add the selected ingredients of a recipe to a shopping list.
    *
-   * Each ingredient becomes a shopping item via the shopping service. When an
-   * ingredient's category is not a valid shopping category it falls back to
-   * "uncategorized" so the add never fails on an unknown category. If no
-   * ingredient names are supplied, all of the recipe's ingredients are added.
+   * Each selected ingredient becomes a shopping item via the shopping service.
+   * When an ingredient's category is not a valid shopping category it falls
+   * back to "uncategorized" so the add never fails on an unknown category.
+   *
+   * Selection is by ingredient ID (the stable per-row id), so two ingredients
+   * that happen to share a name are treated independently. If no IDs are
+   * supplied, all of the recipe's ingredients are added.
+   *
+   * The batch is resilient: if one ingredient fails to add, it is recorded in
+   * `skipped` and the rest still proceed, so a single bad row does not abort
+   * the whole action or leave the caller unsure what landed.
    *
    * @param recipeId Recipe UUID
    * @param addedBy User ID adding the items
    * @param listId Optional target shopping list (defaults to the default list)
-   * @param ingredientNames Optional subset of ingredient names to add
+   * @param ingredientIds Optional subset of ingredient IDs to add
    * @throws RecipeValidationError if the recipe or user context is invalid
    */
   async addIngredientsToShoppingList(
     recipeId: string,
     addedBy: string,
     listId?: string,
-    ingredientNames?: string[]
+    ingredientIds?: string[]
   ): Promise<AddIngredientsResult> {
     const recipe = await dbGetRecipeById(recipeId);
     if (!recipe) {
@@ -197,13 +216,18 @@ export class RecipeService {
       throw new RecipeValidationError('addedBy user is required');
     }
 
-    // Determine which ingredients to add.
+    // Verify the user exists up front (a clean 4xx rather than failing mid-batch).
+    const user = await getUserById(addedBy);
+    if (!user) {
+      throw new RecipeValidationError(`User with ID ${addedBy} not found`);
+    }
+
+    // Determine which ingredients to add — matched by stable id so duplicate
+    // names are handled independently.
     let selected = recipe.ingredients;
-    if (ingredientNames && ingredientNames.length > 0) {
-      const wanted = new Set(ingredientNames.map((n) => n.trim().toLowerCase()));
-      selected = recipe.ingredients.filter((ing) =>
-        wanted.has(ing.name.trim().toLowerCase())
-      );
+    if (ingredientIds && ingredientIds.length > 0) {
+      const wanted = new Set(ingredientIds);
+      selected = recipe.ingredients.filter((ing) => wanted.has(ing.id));
     }
 
     // Load valid categories once so we can validate/fallback per ingredient.
@@ -216,7 +240,7 @@ export class RecipeService {
     for (const ingredient of selected) {
       const name = ingredient.name.trim();
       if (name.length === 0) {
-        skipped.push(ingredient.name);
+        skipped.push(ingredient.name || '(unnamed)');
         continue;
       }
 
@@ -228,13 +252,18 @@ export class RecipeService {
         category = 'uncategorized';
       }
 
-      const item = await shoppingService.addItem({
-        name,
-        category,
-        addedBy,
-        listId,
-      });
-      added.push(item);
+      try {
+        const item = await shoppingService.addItem({
+          name,
+          category,
+          addedBy,
+          listId,
+        });
+        added.push(item);
+      } catch {
+        // Don't abort the whole batch on a single bad row; record and continue.
+        skipped.push(name);
+      }
     }
 
     return { added, skipped };

@@ -73,10 +73,14 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
         recipe.id,
         currentUserId,
         selectedListId || undefined,
-        neededIngredients.map((ing) => ing.name),
+        neededIngredients.map((ing) => ing.id),
       );
+      const skippedNote =
+        result.skipped.length > 0
+          ? ` ${result.skipped.length} could not be added.`
+          : '';
       setFeedback(
-        `Added ${result.added.length} item${result.added.length === 1 ? '' : 's'} to the shopping list.`,
+        `Added ${result.added.length} item${result.added.length === 1 ? '' : 's'} to the shopping list.${skippedNote}`,
       );
     } catch {
       setFeedback('Failed to add items to the shopping list.');
@@ -98,6 +102,14 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
         </div>
 
         {recipe.summary && <p style={{ marginTop: 0 }}>{recipe.summary}</p>}
+
+        {recipe.sourceUrl && (
+          <p style={{ marginTop: 0, fontSize: '0.85rem' }}>
+            <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer">
+              View original source ↗
+            </a>
+          </p>
+        )}
 
         <div className="form-group">
           <label>Ingredients — check what you already have</label>

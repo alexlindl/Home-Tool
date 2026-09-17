@@ -28,6 +28,7 @@ import type {
   CreateRecipeInput,
   UpdateRecipeInput,
   AddIngredientsResult,
+  ImportedRecipe,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -770,6 +771,17 @@ export const recipeApi = {
   },
 
   /**
+   * Import a recipe preview from a URL. The backend fetches the page
+   * server-side, extracts schema.org/Recipe structured data (falling back to
+   * text parsing), and returns editable fields. Nothing is saved — the caller
+   * pre-fills the form for the user to review before creating the recipe.
+   */
+  async importFromUrl(url: string): Promise<ImportedRecipe> {
+    const response = await apiClient.post<{ recipe: ImportedRecipe }>('/recipes/import', { url });
+    return response.data.recipe;
+  },
+
+  /**
    * Add selected recipe ingredients to a shopping list. Omit `ingredientNames`
    * to add every ingredient. Returns the created shopping items plus any
    * skipped ingredient names.
@@ -778,11 +790,11 @@ export const recipeApi = {
     id: string,
     addedBy: string,
     listId?: string,
-    ingredientNames?: string[],
+    ingredientIds?: string[],
   ): Promise<AddIngredientsResult> {
     const response = await apiClient.post<AddIngredientsResult>(
       `/recipes/${id}/add-to-shopping`,
-      { addedBy, listId, ingredientNames },
+      { addedBy, listId, ingredientIds },
     );
     return response.data;
   },

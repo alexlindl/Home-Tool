@@ -8,7 +8,7 @@ The Household Management add-on provides a complete household task and shopping 
 
 - **Task Management**: Create, assign, and track household tasks with due dates and recurrence
 - **Shopping Lists**: Manage shopping items with categories and purchase tracking
-- **Recipes**: Keep shared recipes with a summary, steps, and an ingredient list; paste in recipes from other sources, check off what you already have, and add the rest to a shopping list in one tap
+- **Recipes**: Keep shared recipes with a summary, steps, and an ingredient list; import from a recipe URL or paste in recipe text, check off what you already have, and add the rest to a shopping list in one tap
 - **Multiple Lists**: Organize tasks and shopping items into separate lists
 - **Real-time Sync**: Changes sync instantly across all connected devices via WebSocket
 - **Sidebar Access**: Integrated directly into the HA sidebar via ingress

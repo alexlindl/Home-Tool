@@ -401,9 +401,22 @@ export interface Recipe {
   summary?: string;
   steps: string[];
   createdBy?: string; // User ID (attribution)
+  sourceUrl?: string; // URL the recipe was imported from, if any
   ingredients: RecipeIngredient[];
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
+}
+
+/**
+ * A recipe preview returned by POST /api/recipes/import — parsed from a web
+ * page but not yet saved. The user reviews/edits it before creating a recipe.
+ */
+export interface ImportedRecipe {
+  name: string;
+  summary: string;
+  ingredients: RecipeIngredientInput[];
+  steps: string[];
+  sourceUrl: string;
 }
 
 /**
@@ -424,6 +437,7 @@ export interface CreateRecipeInput {
   steps: string[];
   ingredients: RecipeIngredientInput[];
   createdBy?: string;
+  sourceUrl?: string;
 }
 
 /**
@@ -435,6 +449,7 @@ export interface UpdateRecipeInput {
   summary?: string | null;
   steps?: string[];
   ingredients?: RecipeIngredientInput[];
+  sourceUrl?: string | null;
 }
 
 /**

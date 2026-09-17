@@ -13,6 +13,7 @@ import {
   RecipeValidationError,
 } from '../services/RecipeService';
 import { restoreRecipe } from '../db/recipeQueries';
+import { importRecipeFromUrl, RecipeImportError } from '../services/recipeImport';
 import { query } from '../db/connection';
 
 const router = Router();
@@ -50,7 +51,7 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
  */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, summary, steps, ingredients, createdBy } = req.body;
+    const { name, summary, steps, ingredients, createdBy, sourceUrl } = req.body;
 
     const recipe = await recipeService.createRecipe({
       name,
@@ -58,6 +59,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       steps: Array.isArray(steps) ? steps : [],
       ingredients: Array.isArray(ingredients) ? ingredients : [],
       createdBy,
+      sourceUrl,
     });
 
     try {
@@ -111,6 +113,7 @@ router.post('/restore', async (req: Request, res: Response): Promise<void> => {
       summary: body.summary ?? null,
       steps: Array.isArray(body.steps) ? body.steps : [],
       createdBy: body.createdBy ?? body.created_by ?? null,
+      sourceUrl: body.sourceUrl ?? body.source_url ?? null,
       ingredients: Array.isArray(body.ingredients) ? body.ingredients : [],
       createdAt: body.createdAt ?? body.created_at ?? null,
     });
@@ -119,6 +122,41 @@ router.post('/restore', async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error('Error restoring recipe:', error);
     res.status(500).json({ status: 'error', message: 'Failed to restore recipe' });
+  }
+});
+
+/**
+ * POST /api/recipes/import
+ * Fetch a recipe web page server-side and return a normalized preview parsed
+ * from its schema.org/Recipe structured data (with a plain-text fallback). The
+ * result is NOT saved — the client pre-fills the form so the user can review
+ * and edit before creating the recipe.
+ *
+ * Request body: { "url": "https://example.com/recipe" }
+ *
+ * Response: 200 OK
+ * { "recipe": { name, summary, ingredients: [{name, quantity}], steps: [], sourceUrl } }
+ *
+ * Response: 400 Bad Request when the URL is invalid/blocked or no recipe found.
+ */
+router.post('/import', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { url } = req.body ?? {};
+
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ status: 'error', message: 'A url is required' });
+      return;
+    }
+
+    const imported = await importRecipeFromUrl(url);
+    res.status(200).json({ recipe: imported });
+  } catch (error) {
+    if (error instanceof RecipeImportError) {
+      res.status(400).json({ status: 'error', message: error.message });
+      return;
+    }
+    console.error('Error importing recipe:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to import recipe' });
   }
 });
 
@@ -156,13 +194,14 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 router.put('/:id', async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const { name, summary, steps, ingredients } = req.body;
+    const { name, summary, steps, ingredients, sourceUrl } = req.body;
 
     const recipe = await recipeService.updateRecipe(id, {
       ...(name !== undefined ? { name } : {}),
       ...(summary !== undefined ? { summary } : {}),
       ...(steps !== undefined ? { steps } : {}),
       ...(ingredients !== undefined ? { ingredients } : {}),
+      ...(sourceUrl !== undefined ? { sourceUrl } : {}),
     });
 
     if (!recipe) {
@@ -217,8 +256,8 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
  * Request body:
  * {
  *   "addedBy": "uuid",
- *   "listId": "uuid",              // optional; defaults to the default list
- *   "ingredientNames": ["Flour"]  // optional subset of ingredient names
+ *   "listId": "uuid",             // optional; defaults to the default list
+ *   "ingredientIds": ["uuid"]     // optional subset of ingredient IDs
  * }
  *
  * Response: 200 OK { "added": [ ShoppingItem ], "skipped": [ string ] }
@@ -226,7 +265,7 @@ router.delete('/:id', async (req: Request, res: Response): Promise<void> => {
 router.post('/:id/add-to-shopping', async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const { addedBy, listId, ingredientNames } = req.body;
+    const { addedBy, listId, ingredientIds } = req.body;
 
     if (!addedBy) {
       res.status(400).json({
@@ -240,7 +279,7 @@ router.post('/:id/add-to-shopping', async (req: Request, res: Response): Promise
       id,
       addedBy,
       listId,
-      Array.isArray(ingredientNames) ? ingredientNames : undefined
+      Array.isArray(ingredientIds) ? ingredientIds : undefined
     );
 
     // Log activity (non-fatal).

@@ -83,6 +83,7 @@ export const Recipes: React.FC = () => {
             summary: recipe.summary ?? null,
             steps: recipe.steps,
             createdBy: recipe.createdBy ?? null,
+            sourceUrl: recipe.sourceUrl ?? null,
             ingredients: recipe.ingredients.map((ing) => ({
               name: ing.name,
               quantity: ing.quantity,

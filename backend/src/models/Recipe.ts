@@ -59,6 +59,7 @@ export interface Recipe {
   summary?: string;
   steps: string[]; // ordered step strings
   createdBy?: string; // User ID (attribution only)
+  sourceUrl?: string; // URL the recipe was imported from, if any
   ingredients: RecipeIngredient[];
   createdAt: Date;
   updatedAt: Date;
@@ -77,6 +78,7 @@ export interface RecipeRow {
   summary: string | null;
   steps: string[] | null;
   created_by: string | null;
+  source_url: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -94,6 +96,7 @@ export const recipeFromRow = (
     summary: row.summary || undefined,
     steps: Array.isArray(row.steps) ? row.steps : [],
     createdBy: row.created_by || undefined,
+    sourceUrl: row.source_url || undefined,
     ingredients,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -118,6 +121,7 @@ export interface CreateRecipeInput {
   steps: string[];
   ingredients: RecipeIngredientInput[];
   createdBy?: string;
+  sourceUrl?: string;
 }
 
 /**
@@ -130,4 +134,5 @@ export interface UpdateRecipeInput {
   summary?: string | null;
   steps?: string[];
   ingredients?: RecipeIngredientInput[];
+  sourceUrl?: string | null;
 }
