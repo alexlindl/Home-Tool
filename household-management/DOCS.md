@@ -8,6 +8,7 @@ The Household Management add-on provides a complete household task and shopping 
 
 - **Task Management**: Create, assign, and track household tasks with due dates and recurrence
 - **Shopping Lists**: Manage shopping items with categories and purchase tracking
+- **Recipes**: Keep shared recipes with a summary, steps, and an ingredient list; paste in recipes from other sources, check off what you already have, and add the rest to a shopping list in one tap
 - **Multiple Lists**: Organize tasks and shopping items into separate lists
 - **Real-time Sync**: Changes sync instantly across all connected devices via WebSocket
 - **Sidebar Access**: Integrated directly into the HA sidebar via ingress
@@ -18,7 +19,7 @@ The Household Management add-on provides a complete household task and shopping 
 
 The add-on runs three services inside a single container:
 
-1. **PostgreSQL 16** — stores all task, shopping, and user data in `/config/postgres`
+1. **PostgreSQL 16** — stores all task, shopping, recipe, and user data in `/config/postgres`
 2. **Node.js Backend** — REST API on port 3000 (internal)
 3. **Nginx** — serves the web UI and proxies API requests on port 8023
 

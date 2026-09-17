@@ -8,6 +8,7 @@ A Home Assistant add-on for coordinating household chores and shopping lists amo
 
 - **Task management** — create, assign, complete, and recur tasks across multiple lists
 - **Shopping lists** — categorized items with purchase tracking across multiple lists
+- **Recipes** — shared recipes with summary, steps, and an ingredient list; paste text from other sources to pre-fill the form, then check off what you have and add the rest to a shopping list
 - **Multiple lists** — separate task lists and shopping lists with rename and move-between support
 - **Enhanced recurrence** — every N days, every N weeks, specific weekdays, Nth weekday of month
 - **Backlog tasks** — tasks without due dates for unscheduled work
@@ -86,6 +87,7 @@ sudo service postgresql status
 - `GET/POST/PUT/DELETE /api/shopping` — shopping item CRUD
 - `GET/POST/PUT/DELETE /api/task-lists` — task list management
 - `GET/POST/PUT/DELETE /api/shopping-lists` — shopping list management
+- `GET/POST/PUT/DELETE /api/recipes` — recipe CRUD (ingredients nested)
 - `GET/POST /api/categories` — category management
 
 ### Task Actions
@@ -97,6 +99,10 @@ sudo service postgresql status
 - `POST /api/shopping/:id/purchase` — mark item purchased
 - `POST /api/shopping/:id/unpurchase` — undo purchase
 - `PUT /api/shopping/:id/move` — move item to another list
+
+### Recipe Actions
+- `POST /api/recipes/:id/add-to-shopping` — add selected recipe ingredients to a shopping list
+- `POST /api/recipes/restore` — restore a deleted recipe (Undo)
 
 ### Dashboard Integration (Home Assistant)
 - `GET /api/summary/tasks` — task summary for HA sensors
