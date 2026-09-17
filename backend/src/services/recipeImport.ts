@@ -173,16 +173,25 @@ const validateAndResolve = (rawUrl: string): Promise<ValidatedTarget> => {
 const fetchOnce = (
   target: ValidatedTarget,
 ): Promise<{ status: number; body: string; location?: string; contentType: string }> => {
-  const client = target.url.protocol === 'https:' ? https : http;
+  const isHttps = target.url.protocol === 'https:';
+  const client = isHttps ? https : http;
 
   // Pin DNS to the already-validated IP so the connect cannot resolve to a
-  // different (internal) address than the one that passed validation.
-  const pinnedLookup = (
-    _hostname: string,
-    _options: unknown,
-    cb: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
-  ): void => {
-    cb(null, target.ip, target.family);
+  // different (internal) address than the one that passed validation. Node
+  // calls lookup as (hostname, options, cb) or (hostname, cb), and when
+  // options.all is true it expects the callback to receive an ARRAY of
+  // { address, family } rather than positional (err, address, family).
+  // Handle all of these so the socket connects instead of erroring with
+  // ERR_INVALID_IP_ADDRESS.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pinnedLookup = (_hostname: string, options: any, cb?: any): void => {
+    const callback = typeof options === 'function' ? options : cb;
+    const opts = typeof options === 'function' ? {} : options || {};
+    if (opts.all) {
+      callback(null, [{ address: target.ip, family: target.family }]);
+    } else {
+      callback(null, target.ip, target.family);
+    }
   };
 
   return new Promise((resolve, reject) => {
@@ -194,6 +203,10 @@ const fetchOnce = (
         timeout: REQUEST_TIMEOUT_MS,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         lookup: pinnedLookup as any,
+        // Connecting by pinned IP would otherwise break TLS cert validation and
+        // SNI (the cert is issued for the hostname, not the IP). Set servername
+        // so SNI + certificate matching use the original hostname.
+        ...(isHttps ? { servername: target.url.hostname } : {}),
       },
       (res) => {
         const status = res.statusCode ?? 0;
@@ -257,7 +270,12 @@ const fetchOnce = (
       req.destroy();
       reject(new RecipeImportError('Timed out fetching the recipe page.' + PASTE_HINT));
     });
-    req.on('error', () => {
+    req.on('error', (err: NodeJS.ErrnoException) => {
+      // Log the underlying reason so add-on logs can distinguish a blocked site
+      // from a DNS/TLS/egress problem; keep the user-facing message friendly.
+      console.error(
+        `Recipe import fetch error for ${target.url.hostname}: ${err.code ?? ''} ${err.message}`,
+      );
       reject(new RecipeImportError('Could not reach the recipe page.' + PASTE_HINT));
     });
     req.end();

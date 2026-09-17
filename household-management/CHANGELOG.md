@@ -2,6 +2,11 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.5.3] - 2026-09-17
+
+### Fixed
+- Recipe URL import failed for every site with "Could not reach the recipe page", even for sites that publish importable recipe data. The SSRF protection added in the previous version pinned the connection to a validated IP using a custom DNS lookup that didn't follow Node's expected format, so the connection errored before any request was made. Imports now work again (verified against nhs.uk). Sites that block automated access (e.g. some large retailers returning HTTP 403) still fall back to the copy-and-paste option
+
 ## [1.5.2] - 2026-09-17
 
 ### Changed
