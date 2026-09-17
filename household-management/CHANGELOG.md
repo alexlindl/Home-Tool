@@ -2,6 +2,15 @@
 
 All notable changes to the Household Management add-on will be documented in this file.
 
+## [1.5.2] - 2026-09-17
+
+### Changed
+- Recipe ingredient checklist now works the other way round: tick the ingredients you want to add to your shopping list (all are ticked by default), and untick the ones you already have. The button reads "Add N items"
+- Recipe URL import now presents itself as a normal web browser and understands compressed (gzip/deflate/brotli) responses, so it succeeds on more recipe sites. When a page still can't be imported — because it blocks automated access, or loads its recipe with JavaScript so the recipe isn't in the initial HTML — the error now explains what happened and suggests copying the recipe from the page and pasting it instead
+
+### Fixed
+- Recipe cards were hard to read in dark mode (dark text on a light card). Cards now use the app's theme colors for background, text, and border, so the recipe name is readable in both light and dark themes, and each card shows just the recipe name and the ingredient/step counts
+
 ## [1.5.1] - 2026-09-17
 
 ### Added

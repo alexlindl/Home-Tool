@@ -175,7 +175,7 @@ export const RecipeForm: React.FC<RecipeFormProps> = ({
       const axiosErr = err as { response?: { data?: { message?: string } } };
       setImportError(
         axiosErr.response?.data?.message ||
-          'Could not import from that URL. Try copying the recipe text and pasting it instead.',
+          'Could not import from that URL. Some sites block automated imports or load their recipe with JavaScript. Copy the recipe from the page and paste it into the box below instead.',
       );
     } finally {
       setImporting(false);

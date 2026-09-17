@@ -1,7 +1,11 @@
 /**
  * RecipeCard Component
  * Compact display of a recipe in the recipe list. Clicking opens the detail
- * view. Shows the name, summary, and ingredient/step counts.
+ * view. Shows the recipe name and ingredient/step counts.
+ *
+ * All colors come from theme CSS variables so the card is readable in both the
+ * light and dark themes (a hardcoded background previously left the name
+ * unreadable in dark mode).
  */
 
 import React from 'react';
@@ -28,19 +32,17 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onOpen }) => {
         textAlign: 'left',
         padding: '12px 14px',
         marginBottom: '8px',
-        border: '1px solid var(--color-border, #e0e0e0)',
+        border: '1px solid var(--color-border)',
         borderRadius: '8px',
-        background: 'var(--color-surface, #fff)',
+        background: 'var(--color-surface)',
+        color: 'var(--color-text)',
         cursor: 'pointer',
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>🍳 {recipe.name}</div>
-      {recipe.summary && (
-        <div style={{ opacity: 0.8, fontSize: '0.9rem', marginTop: '2px' }}>
-          {recipe.summary}
-        </div>
-      )}
-      <div style={{ opacity: 0.6, fontSize: '0.8rem', marginTop: '6px' }}>
+      <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--color-text)' }}>
+        🍳 {recipe.name}
+      </div>
+      <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem', marginTop: '6px' }}>
         {ingredientCount} ingredient{ingredientCount === 1 ? '' : 's'} ·{' '}
         {stepCount} step{stepCount === 1 ? '' : 's'}
       </div>

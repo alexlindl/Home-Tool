@@ -1,8 +1,9 @@
 /**
  * RecipeDetail Component
  * Modal showing a recipe's name, summary, and steps, plus an interactive
- * ingredient checklist. The user ticks the ingredients they already HAVE; the
- * remaining (needed) ingredients can be added to a chosen shopping list.
+ * ingredient checklist. Each ingredient is ticked to mean "add this to the
+ * shopping list"; untick the ones you already have. All are ticked by default,
+ * so adding everything is one tap.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -26,8 +27,9 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
   onEdit,
   onDelete,
 }) => {
-  // Set of ingredient IDs the user has marked as "already have".
-  const [haveIds, setHaveIds] = useState<Set<string>>(new Set());
+  // Set of ingredient IDs the user has ticked to ADD to the shopping list.
+  // Defaults to every ingredient when the modal opens.
+  const [addIds, setAddIds] = useState<Set<string>>(new Set());
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [selectedListId, setSelectedListId] = useState('');
   const [adding, setAdding] = useState(false);
@@ -35,7 +37,8 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    setHaveIds(new Set());
+    // Tick every ingredient by default so "add all" is one action.
+    setAddIds(new Set(recipe ? recipe.ingredients.map((ing) => ing.id) : []));
     setFeedback('');
     shoppingListApi
       .getAll()
@@ -47,8 +50,8 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
       .catch(() => {});
   }, [open, recipe]);
 
-  const toggleHave = (id: string) => {
-    setHaveIds((prev) => {
+  const toggleAdd = (id: string) => {
+    setAddIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -59,13 +62,13 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
     });
   };
 
-  const neededIngredients = useMemo(
-    () => (recipe ? recipe.ingredients.filter((ing) => !haveIds.has(ing.id)) : []),
-    [recipe, haveIds],
+  const selectedIngredients = useMemo(
+    () => (recipe ? recipe.ingredients.filter((ing) => addIds.has(ing.id)) : []),
+    [recipe, addIds],
   );
 
-  const handleAddNeeded = async () => {
-    if (!recipe || neededIngredients.length === 0) return;
+  const handleAddSelected = async () => {
+    if (!recipe || selectedIngredients.length === 0) return;
     setAdding(true);
     setFeedback('');
     try {
@@ -73,7 +76,7 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
         recipe.id,
         currentUserId,
         selectedListId || undefined,
-        neededIngredients.map((ing) => ing.id),
+        selectedIngredients.map((ing) => ing.id),
       );
       const skippedNote =
         result.skipped.length > 0
@@ -112,13 +115,13 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
         )}
 
         <div className="form-group">
-          <label>Ingredients — check what you already have</label>
+          <label>Ingredients — tick the ones to add to your shopping list</label>
           {recipe.ingredients.length === 0 ? (
             <p style={{ opacity: 0.7 }}>No ingredients listed.</p>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {recipe.ingredients.map((ing) => {
-                const have = haveIds.has(ing.id);
+                const willAdd = addIds.has(ing.id);
                 return (
                   <li
                     key={ing.id}
@@ -126,16 +129,16 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
                   >
                     <input
                       type="checkbox"
-                      id={`have-${ing.id}`}
-                      checked={have}
-                      onChange={() => toggleHave(ing.id)}
+                      id={`add-${ing.id}`}
+                      checked={willAdd}
+                      onChange={() => toggleAdd(ing.id)}
                     />
                     <label
-                      htmlFor={`have-${ing.id}`}
+                      htmlFor={`add-${ing.id}`}
                       style={{
                         margin: 0,
-                        textDecoration: have ? 'line-through' : 'none',
-                        opacity: have ? 0.6 : 1,
+                        textDecoration: willAdd ? 'none' : 'line-through',
+                        opacity: willAdd ? 1 : 0.6,
                       }}
                     >
                       {ing.quantity ? `${ing.quantity} ` : ''}
@@ -151,7 +154,7 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
 
         {recipe.ingredients.length > 0 && (
           <div className="form-group">
-            <label htmlFor="recipe-target-list">Add needed items to</label>
+            <label htmlFor="recipe-target-list">Add ticked items to</label>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <select
                 id="recipe-target-list"
@@ -168,12 +171,12 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={handleAddNeeded}
-                disabled={adding || neededIngredients.length === 0}
+                onClick={handleAddSelected}
+                disabled={adding || selectedIngredients.length === 0}
               >
                 {adding
                   ? 'Adding...'
-                  : `Add ${neededIngredients.length} needed`}
+                  : `Add ${selectedIngredients.length} item${selectedIngredients.length === 1 ? '' : 's'}`}
               </button>
             </div>
             {feedback && (

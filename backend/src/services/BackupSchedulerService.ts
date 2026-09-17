@@ -307,7 +307,7 @@ export class BackupSchedulerService {
     const categories = await query('SELECT * FROM categories');
 
     return {
-      version: '1.5.1',
+      version: '1.5.2',
       exportedAt: new Date().toISOString(),
       data: {
         users: users.rows,

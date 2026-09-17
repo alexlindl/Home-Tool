@@ -13,6 +13,7 @@
 
 import http from 'http';
 import https from 'https';
+import zlib from 'zlib';
 import { lookup } from 'dns';
 import net from 'net';
 import { URL } from 'url';
@@ -24,8 +25,38 @@ import {
 import { parseRecipeText } from './recipeTextParser';
 
 const MAX_BYTES = 2 * 1024 * 1024; // 2 MB cap
+
+/**
+ * A realistic desktop-Chrome header set. Presenting as a normal browser (rather
+ * than an obvious bot User-Agent) lets more sites — including some behind
+ * lightweight bot checks — return their full HTML. This does NOT defeat serious
+ * bot protection (Cloudflare/Akamai/DataDome) or JavaScript-rendered pages;
+ * those still fall back to the paste option.
+ */
+const BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  Accept:
+    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+};
 const REQUEST_TIMEOUT_MS = 10000;
 const MAX_REDIRECTS = 5;
+
+/**
+ * Suffix appended to failures where the page could not be read or parsed. Many
+ * recipe sites block automated access or load their content with JavaScript
+ * (so the recipe is not in the initial HTML). In those cases the reliable path
+ * is to copy the recipe from the page and paste it into the box below.
+ */
+const PASTE_HINT =
+  ' Some sites block automated imports or load their recipe with JavaScript. Copy the recipe from the page and paste it into the box below instead.';
 
 /**
  * Error thrown when a URL is rejected before/for the fetch (bad URL, blocked
@@ -159,12 +190,7 @@ const fetchOnce = (
       target.url,
       {
         method: 'GET',
-        headers: {
-          // Identify as a normal browser so sites return their full HTML.
-          'User-Agent':
-            'Mozilla/5.0 (compatible; HouseholdManagementBot/1.0; +recipe-import)',
-          Accept: 'text/html,application/xhtml+xml',
-        },
+        headers: BROWSER_HEADERS,
         timeout: REQUEST_TIMEOUT_MS,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         lookup: pinnedLookup as any,
@@ -173,6 +199,7 @@ const fetchOnce = (
         const status = res.statusCode ?? 0;
         const location = res.headers.location;
         const contentType = String(res.headers['content-type'] ?? '');
+        const contentEncoding = String(res.headers['content-encoding'] ?? '').toLowerCase();
 
         // For redirects we don't need the body.
         if (status >= 300 && status < 400 && location) {
@@ -187,15 +214,39 @@ const fetchOnce = (
           received += chunk.length;
           if (received > MAX_BYTES) {
             req.destroy();
-            reject(new RecipeImportError('Recipe page is too large to import'));
+            reject(new RecipeImportError('Recipe page is too large to import.' + PASTE_HINT));
             return;
           }
           chunks.push(chunk);
         });
         res.on('end', () => {
+          const raw = Buffer.concat(chunks);
+
+          // Decompress if the server used content-encoding (we advertised
+          // gzip/deflate/br). Fall back to the raw bytes if decompression fails
+          // or the encoding is unknown/identity.
+          // Cap the decompressed output too, to guard against decompression
+          // bombs (a small compressed payload expanding to something huge).
+          const DECOMPRESS_MAX = MAX_BYTES * 8;
+          let bodyBuf = raw;
+          try {
+            if (contentEncoding === 'gzip') {
+              bodyBuf = zlib.gunzipSync(raw, { maxOutputLength: DECOMPRESS_MAX });
+            } else if (contentEncoding === 'deflate') {
+              bodyBuf = zlib.inflateSync(raw, { maxOutputLength: DECOMPRESS_MAX });
+            } else if (contentEncoding === 'br') {
+              bodyBuf = zlib.brotliDecompressSync(raw, {
+                params: { [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length },
+                maxOutputLength: DECOMPRESS_MAX,
+              });
+            }
+          } catch {
+            bodyBuf = raw;
+          }
+
           resolve({
             status,
-            body: Buffer.concat(chunks).toString('utf8'),
+            body: bodyBuf.toString('utf8'),
             contentType,
           });
         });
@@ -204,10 +255,10 @@ const fetchOnce = (
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new RecipeImportError('Timed out fetching the recipe page'));
+      reject(new RecipeImportError('Timed out fetching the recipe page.' + PASTE_HINT));
     });
     req.on('error', () => {
-      reject(new RecipeImportError('Failed to fetch the recipe page'));
+      reject(new RecipeImportError('Could not reach the recipe page.' + PASTE_HINT));
     });
     req.end();
   });
@@ -232,18 +283,18 @@ const fetchHtml = async (rawUrl: string): Promise<string> => {
 
     if (result.status >= 400) {
       throw new RecipeImportError(
-        `The recipe page returned an error (HTTP ${result.status})`,
+        `The site refused the request (HTTP ${result.status}).` + PASTE_HINT,
       );
     }
 
     if (result.contentType && !result.contentType.includes('html')) {
-      throw new RecipeImportError('The URL did not return an HTML page');
+      throw new RecipeImportError('The URL did not return a readable web page.' + PASTE_HINT);
     }
 
     return result.body;
   }
 
-  throw new RecipeImportError('Too many redirects');
+  throw new RecipeImportError('The recipe page redirected too many times.' + PASTE_HINT);
 };
 
 /**
@@ -279,7 +330,5 @@ export const importRecipeFromUrl = async (
     };
   }
 
-  throw new RecipeImportError(
-    'Could not find a recipe on that page. Try copying the recipe text and pasting it instead.',
-  );
+  throw new RecipeImportError('Could not find a recipe on that page.' + PASTE_HINT);
 };
