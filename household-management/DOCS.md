@@ -15,6 +15,25 @@ The Household Management add-on provides a complete household task and shopping 
 - **Dashboard Sensors**: REST sensors for Lovelace dashboard cards
 - **Self-contained**: PostgreSQL database runs inside the add-on container
 
+## Recipe import: which sites work
+
+You can add a recipe either by **importing from a URL** or by **pasting** the recipe text. Import fetches the page on the server and reads the recipe from the structured data (schema.org/Recipe) that most recipe sites publish.
+
+**Usually works** — sites that include recipe structured data in the page:
+
+- The NHS Healthier Families recipes (tested and working)
+- Most independent food blogs (those built on WordPress recipe plugins)
+- Many large recipe sites that serve their pages without bot blocking (for example NYT Cooking, BBC Good Food, Serious Eats)
+
+**Often won't import automatically** — for these, use the paste option:
+
+- Sites that block automated access with bot protection. Large retailers and some big publisher networks do this and return an error to the import (for example Tesco and the Dotdash Meredith network — Allrecipes, Southern Living — return HTTP 403). No server-side importer can get past this reliably
+- Sites that build the recipe with JavaScript in your browser, so the recipe is not in the page's initial HTML (for example some appliance-brand recipe pages such as SharkNinja / Ninja Kitchen). The importer only sees the empty page shell
+
+This is a limitation of importing from a URL, not a bug. Site behaviour also changes over time, so a site that works today may start blocking later, and vice versa.
+
+**Paste always works.** If a URL won't import, open the recipe in your browser, copy the ingredients and method text, and paste it into the box — the app parses the pasted text into name, ingredients, and steps for you to review and edit before saving. Nothing about a page can stop paste from working, because your browser has already loaded it.
+
 ## Architecture
 
 The add-on runs three services inside a single container:

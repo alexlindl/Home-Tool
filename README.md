@@ -105,6 +105,15 @@ sudo service postgresql status
 - `POST /api/recipes/:id/add-to-shopping` — add selected recipe ingredients to a shopping list
 - `POST /api/recipes/restore` — restore a deleted recipe (Undo)
 
+#### Recipe import: which sites work
+
+URL import reads the recipe from the schema.org/Recipe structured data most sites publish.
+
+- **Usually works:** sites that include recipe structured data and serve pages without bot blocking — the NHS Healthier Families recipes (verified), most independent food blogs, and many large recipe sites (e.g. NYT Cooking, BBC Good Food, Serious Eats).
+- **Often won't import (use paste):** sites behind bot protection that return an error to automated requests (e.g. Tesco, and Dotdash Meredith sites such as Allrecipes / Southern Living return HTTP 403), and sites that render the recipe with JavaScript so it isn't in the initial HTML (e.g. some appliance-brand pages like SharkNinja).
+
+This is a limitation of URL import, not a bug, and site behaviour changes over time. **Paste always works:** copy the recipe text from the page and paste it in — the app parses it into name, ingredients, and steps for review.
+
 ### Dashboard Integration (Home Assistant)
 - `GET /api/summary/tasks` — task summary for HA sensors
 - `GET /api/summary/shopping` — shopping summary for HA sensors
